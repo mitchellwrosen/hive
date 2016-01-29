@@ -15,7 +15,9 @@ cabal-version:       >=1.10
 library
   hs-source-dirs:      src
   exposed-modules:     Hive
+  other-modules:       Data.List.Zipper
   build-depends:       base >= 4.7 && < 5
+                     , comonad
   default-language:    Haskell2010
 
 test-suite hive-test
