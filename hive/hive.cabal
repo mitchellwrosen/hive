@@ -16,6 +16,7 @@ library
   hs-source-dirs:      src
   exposed-modules:     Hive
   other-modules:       Data.List.Zipper
+                     , Hive.BoardZipper
   build-depends:       base >= 4.7 && < 5
                      , comonad
                      , lens

@@ -1,19 +1,20 @@
 {-# LANGUAGE DeriveFunctor       #-}
 {-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Hive
     ( Hive
-    , makeFirstPlacement
     , makePlacement
     , makeMove
     , runHive
     ) where
 
-import Data.List.Zipper
+import Hive.BoardZipper
 import Hive.Types
 
 import Control.Lens
+import Control.Monad
 import Control.Monad.Trans.Free
 
 import qualified Data.List as List
@@ -23,14 +24,15 @@ import qualified Data.List as List
 
 -- | Underlying Hive action functor.
 data HiveF a
-    -- Place the very first tile. During interpretation, the continuation is
-    -- fed Nothing if the move was invalid, and Just otherwise. The same is
-    -- true for the continuations below.
-    = MakeFirstPlacement Bug (Maybe TurnResult -> a)
     -- Place a new tile.
-    | MakePlacement Placement (Maybe TurnResult -> a)
+    = MakePlacement
+        Bug                      -- The bug to place
+        BoardIndex               -- The cell to place it at
+        (Maybe TurnResult -> a)  -- The resulting board state (after opp. goes)
     -- Move an already-placed tile.
-    | MakeMove Move (Maybe TurnResult -> a)
+    | MakeMove
+        [BoardIndex]             -- The path from source cell to dest. cell
+        (Maybe TurnResult -> a)  -- The resulting board state (after opp. goes)
     deriving Functor
 
 -- The Hive monad, where Hive actions and inner monad actions are interleaved.
@@ -39,34 +41,42 @@ type Hive m a = FreeT HiveF m a
 --------------------------------------------------------------------------------
 -- Hive DSL
 
-makeFirstPlacement :: Monad m => Bug -> Hive m (Maybe TurnResult)
-makeFirstPlacement tile = liftF (MakeFirstPlacement tile id)
+makePlacement
+    :: Monad m
+    => Bug
+    -> BoardIndex
+    -> Hive m (Maybe TurnResult)
+makePlacement bug idx = liftF (MakePlacement bug idx id)
 
-makePlacement :: Monad m => Placement -> Hive m (Maybe TurnResult)
-makePlacement placement = liftF (MakePlacement placement id)
-
-makeMove :: Monad m => Move -> Hive m (Maybe TurnResult)
-makeMove move = liftF (MakeMove move id)
+makeMove :: Monad m => [BoardIndex] -> Hive m (Maybe TurnResult)
+makeMove path = liftF (MakeMove path id)
 
 --------------------------------------------------------------------------------
 -- Hive interpreter
 
 runHive
     :: Monad m
-    => (Game -> Hive m ())
-    -> (Game -> Hive m ())
+    => (Board -> [Bug] -> [Bug] -> Hive m ())
+    -> (Board -> [Bug] -> [Bug] -> Hive m ())
     -> m ()
 runHive p1 p2 =
     runHive'
         game
-        (p1 game)
+        (p1 board bugs bugs)
         -- There's no way for the game to have a winner after just 1 turn,
         -- so this partial pattern match is ok.
         (\case
-            GameCont game' -> p2 game')
+            GameCont board' _ bugs' ->
+                p2 board' -- board with 1 bug on it
+                   bugs   -- p2 hasn't gone yet, so just re-use initial bugs
+                   bugs') -- p1 has played one bug
   where
     game :: Game
-    game = Game [[[]]] P1 bugs bugs
+    game = Game board P1 bugs bugs 0 0
+
+    -- One empty tile stack
+    board :: Board
+    board = Board [[[]]]
 
     bugs :: [Bug]
     bugs =
@@ -82,54 +92,81 @@ runHive p1 p2 =
 runHive'
     :: forall m.
        Monad m
-    => Game                      -- Game board
-    -> Hive m ()                 -- Current player logic
-    -> (TurnResult -> Hive m ()) -- Next player logic, waiting for board resulting
-                                 --   from current player's move
+    => Game                                    -- Game board
+    -> Hive m ()                               -- Current player logic
+    -> (TurnResult -> Hive m ())               -- Next player logic, waiting for board resulting
+                                               --   from current player's move
     -> m ()
 runHive' game cur_player next_player =
     runFreeT cur_player >>= \case
         -- The current player's logic has ended, so we have nothing left to
-        -- interpret.
+        -- interpret. This shouldn't happen with well-written players.
         Pure () -> pure ()
 
-        -- If the board has any tiles on it, this fails. If it doesn't, we can
-        -- assume that the current player is P1.
-        Free (MakeFirstPlacement bug k) ->
-            if nullOf boardTiles (game^.gameBoard)
-                then
-                    let
-                        -- Updated game state.
-                        game' :: Game
-                        game' = game
-                            & gameBoard  .~ [[[Tile (game^.gamePlayer) bug]]]
-                            & gamePlayer %~ nextPlayer
-                            & gameP1Bugs %~ List.delete bug
+        Free (MakePlacement bug (x,y) k)
+            -- Placing a bug that's not in the current player's supply is an
+            -- invalid placement.
+            | bug `notElem` game^.gameCurPlayerBugs -> invalidMove k
 
-                        -- Current player's continuation, which receives the
-                        -- result of the next player's move.
-                        cur_player' :: TurnResult -> Hive m ()
-                        cur_player' res = k (Just res)
+            -- Queen must be placed by move 4.
+            | bug /= Queen &&
+              Queen `elem` game^.gameCurPlayerBugs &&
+              game^.gameCurPlayerPlaced == 3 -> invalidMove k
 
-                        -- Next player logic, given the result of the current
-                        -- player taking his/her turn.
-                        --
-                        -- This is what feeds the partial pattern match from
-                        -- 'runHive', where we assume the result of the first
-                        -- tile being placed is a GameCont (which it is).
-                        next_player' :: Hive m ()
-                        next_player' = next_player (GameCont game')
-                    in
-                        runHive' game' next_player' cur_player'
+            | otherwise ->
+                case boardAtIndex (x,y) (game^.gameBoard) of
+                    Just z | bzPeek z == [] -> do
+                        let neighbors :: [TileStack]
+                            neighbors = bzNeighbors z
 
-                else runHive' game (k Nothing) next_player
+                        -- A placed tile must touch at least one tile and cannot
+                        -- touch any tiles belonging to the opponent.
+                        if any (\tile -> tileOwner tile == Just opponent) neighbors ||
+                           all null neighbors
+                            then invalidMove k
+                            else do
+                                let -- TODO: Possibly grow board
+                                    z'     = bzPoke [Tile (game^.gamePlayer) bug] z
+                                    board' = bzToBoard z'
 
-        Free (MakePlacement (Placement tile (x,y) adj) k) ->
-            error "TODO"
+                                case boardWinner board' of
+                                    Nothing -> do
+                                        let game' = game
+                                              & gameBoard           .~ board'
+                                              & gamePlayer          %~ nextPlayer
+                                              & gameCurPlayerBugs   %~ List.delete bug
+                                              & gameCurPlayerPlaced %~ (+1)
 
-        Free (MakeMove (Move path adj) k) ->
+                                        runHive'
+                                            game'
+                                            (next_player (gameToResult game'))
+                                            (\result -> k (Just result))
+
+                                    Just winner -> do
+                                        -- Run side-effects of player logic
+                                        -- resulting from a game ending, but
+                                        -- don't bother continuing to interpret
+                                        -- the player actions.
+                                        runFreeT $ do
+                                            k (Just (GameOver winner))
+                                            next_player (GameOver winner)
+                                        pure ()
+
+                    -- This index is out of bounds, or there's one or more tiles
+                    -- here. Either way, it's an invalid placement.
+                    _ -> invalidMove k
+
+        Free (MakeMove path k) ->
             error "TODO"
   where
+    opponent :: Player
+    opponent = nextPlayer (game^.gamePlayer)
+
+    -- Recurse with the same game state, providing Nothing to the current
+    -- player's continuation to indicate an invalid move.
+    invalidMove :: (Maybe TurnResult -> Hive m ()) -> m ()
+    invalidMove k = runHive' game (k Nothing) next_player
+
     -- Lens onto the current player's unplaced bugs.
     gameCurPlayerBugs :: Lens' Game [Bug]
     gameCurPlayerBugs =
@@ -137,10 +174,41 @@ runHive' game cur_player next_player =
             P1 -> gameP1Bugs
             P2 -> gameP2Bugs
 
+    -- Lens onto the current player's # of placed bugs.
+    gameCurPlayerPlaced :: Lens' Game Int
+    gameCurPlayerPlaced =
+        case game^.gamePlayer of
+            P1 -> gameP1Placed
+            P2 -> gameP2Placed
+
+-- | Zip to the specified index on a board.
+boardAtIndex :: BoardIndex -> Board -> Maybe BoardZipper
+boardAtIndex (x,y) =
+    bzFromBoard       >=>
+    repeatM x bzRight >=>
+    repeatM y bzDown
+
 -- | Get the winner of this board, if any.
 boardWinner :: Board -> Maybe Winner
 boardWinner _ = Nothing
 
+tileOwner :: TileStack -> Maybe Player
+tileOwner [] = Nothing
+tileOwner (Tile player _ : _) = Just player
+
 nextPlayer :: Player -> Player
 nextPlayer P1 = P2
 nextPlayer P2 = P1
+
+-- | Repeat a monadic action n times.
+repeatM :: Monad m => Int -> (a -> m a) -> a -> m a
+repeatM 0 _ = pure
+repeatM n f = f >=> repeatM (n-1) f
+
+-- | Strip a Game to just the elements that are passed on to players in a
+-- TurnResult.
+gameToResult :: Game -> TurnResult
+gameToResult Game{..} = GameCont _gameBoard bugs1 bugs2
+  where
+    bugs1 = if _gamePlayer == P1 then _gameP1Bugs else _gameP2Bugs
+    bugs2 = if _gamePlayer == P2 then _gameP1Bugs else _gameP2Bugs
