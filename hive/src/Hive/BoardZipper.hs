@@ -14,6 +14,8 @@ module Hive.BoardZipper
 import Data.List.Zipper
 import Hive.Types
 
+import Control.Lens
+import Control.Monad
 import Data.Maybe
 
 -- Even or odd numbered column
@@ -77,5 +79,26 @@ bzDown :: BoardZipper -> Maybe BoardZipper
 bzDown (BZ _  _ _   [])     = Nothing
 bzDown (BZ as b col (c:cs)) = Just (BZ (b:as) c col cs)
 
+-- | Get all neighbors of a focused tile.
+-- See the "odd-q" vertical layout here for details:
+-- http://www.redblobgames.com/grids/hexagons/#coordinates
 bzNeighbors :: BoardZipper -> [TileStack]
-bzNeighbors = undefined
+bzNeighbors z@(BZ _ _ Even _) = bzNeighbors' z
+    [ bzUp
+    , bzUp >=> bzRight
+    , bzRight
+    , bzDown
+    , bzLeft
+    , bzUp >=> bzLeft
+    ]
+bzNeighbors z@(BZ _ _ Odd _) = bzNeighbors' z
+    [ bzUp
+    , bzRight
+    , bzDown >=> bzRight
+    , bzDown
+    , bzDown >=> bzLeft
+    , bzLeft
+    ]
+
+bzNeighbors' :: BoardZipper -> [BoardZipper -> Maybe BoardZipper] -> [TileStack]
+bzNeighbors' z fs = (fs <*> pure z)^..traverse._Just.to bzPeek
