@@ -8,6 +8,8 @@ module Hive
     , makePlacement
     , makeMove
     , runHive
+    , module Hive.Types
+    , module Control.Monad.Trans.Class
     ) where
 
 import Hive.BoardZipper
@@ -16,6 +18,7 @@ import Hive.Types
 import Control.Lens
 import Control.Monad
 import Control.Monad.Trans.Free
+import Control.Monad.Trans.Class
 
 import qualified Data.List as List
 
@@ -119,10 +122,30 @@ runHive' game cur_player next_player =
                         let neighbors :: [TileStack]
                             neighbors = bzNeighbors z
 
-                        -- A placed tile must touch at least one tile and cannot
-                        -- touch any tiles belonging to the opponent.
-                        if any (\tile -> tileOwner tile == Just opponent) neighbors ||
-                           all null neighbors
+                            -- Does the focused tile have any enemy neighbors?
+                            has_opponent_neighbor :: Bool
+                            has_opponent_neighbor = any p neighbors
+                              where
+                                p :: TileStack -> Bool
+                                p tile = tileOwner tile == Just opponent
+
+                                opponent :: Player
+                                opponent = nextPlayer (game^.gamePlayer)
+
+                            -- Does the focused tile have no neighbors whatsoever?
+                            has_no_neighbors :: Bool
+                            has_no_neighbors = all null neighbors
+
+                            num_placed :: Int
+                            num_placed = game^.gameP1Placed + game^.gameP2Placed
+
+                        if -- Turn two or later: tile must not have any opponent
+                           -- neighbors, and must also have at least one
+                           -- neighbor
+                           (num_placed > 1 && (has_opponent_neighbor || has_no_neighbors)) ||
+                           -- Turn one: tile must have at least one neighbor
+                           (num_placed == 1 && has_no_neighbors)
+                           -- Turn zero: neither of these two conditions apply
                             then invalidMove k
                             else do
                                 let -- TODO: Possibly grow board
@@ -159,9 +182,6 @@ runHive' game cur_player next_player =
         Free (MakeMove path k) ->
             error "TODO"
   where
-    opponent :: Player
-    opponent = nextPlayer (game^.gamePlayer)
-
     -- Recurse with the same game state, providing Nothing to the current
     -- player's continuation to indicate an invalid move.
     invalidMove :: (Maybe TurnResult -> Hive m ()) -> m ()

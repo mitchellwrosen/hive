@@ -14,10 +14,20 @@ module Data.List.Zipper
     ) where
 
 import Control.Comonad
+import Data.List
 import Data.Maybe
 
 data Z a = Z [a] a [a]
     deriving Functor
+
+instance Show a => Show (Z a) where
+    show (Z as b cs) =
+        let
+            as' = map show (reverse as)
+            b'  = ">" ++ show b ++ "<"
+            cs' = map show cs
+        in
+            "[" ++ intercalate "," (as' ++ [b'] ++ cs') ++ "]"
 
 instance Comonad Z where
     extract = zpeek

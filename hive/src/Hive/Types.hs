@@ -73,6 +73,7 @@ type Path = [BoardIndex]
 --            a more appropriate type is [NonEmpty TileStack])
 -- Invariant: there is always at least one row (the empty board is 1x1, not 0x0)
 newtype Board = Board [[TileStack]]
+  deriving Show
 makeWrapped ''Board
 
 -- Traversal over all the tiles on the board.
@@ -84,6 +85,7 @@ data Winner
     = P1Wins
     | P2Wins
     | BothWin
+    deriving Show
 
 -- | The result of taking a single turn: game over (possibly after
 -- opponent takes turn), or an updated game (after opponent takes turn).

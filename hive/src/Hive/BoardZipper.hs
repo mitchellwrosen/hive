@@ -16,6 +16,7 @@ import Hive.Types
 
 import Control.Lens
 import Control.Monad
+import Data.List
 import Data.Maybe
 
 -- Even or odd numbered column
@@ -36,6 +37,15 @@ flipCol Odd  = Even
 -- http://www.redblobgames.com/grids/hexagons/#coordinates
 data BoardZipper
     = BZ [Z TileStack] (Z TileStack) Col [Z TileStack]
+
+instance Show BoardZipper where
+    show (BZ as b _ cs) =
+        let
+            as' = map (show . ztoList) as
+            b'  = show b
+            cs' = map (show . ztoList) cs
+        in
+            "[" ++ intercalate "\n" (as' ++ [b'] ++ cs') ++ "]"
 
 -- | Create a BoardZipper from a Board. Fails if there are no tiles on the
 -- board, succeeds otherwise.
