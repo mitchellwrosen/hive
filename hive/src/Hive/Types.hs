@@ -10,7 +10,6 @@ module Hive.Types
     ) where
 
 import Data.HexBoard
-import Data.HexBoard.Zipper (HexBoardZ)
 
 import Control.Lens
 import GHC.Generics (Generic)
@@ -63,8 +62,6 @@ type BoardIndex = (Int, Int)
 type Cell = [Tile]
 
 type Board = HexBoard Cell
-
-type BoardZ = HexBoardZ Cell
 
 data Game = Game
     { _gameBoard    :: !Board  -- Game board

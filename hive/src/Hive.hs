@@ -8,19 +8,16 @@ module Hive
     , module Hive.Types
     ) where
 
-import Data.HexBoard
-import Data.HexBoard.Zipper (HexBoardZ)
 import Hive.Monad
 import Hive.Types
-
-import qualified Data.HexBoard.Zipper as BZ
 
 import Control.Lens
 import Control.Monad
 import Control.Monad.Trans.Free
 import Control.Monad.Trans.Class
 
-import qualified Data.List as List
+import qualified Data.List   as List
+import qualified Data.Vector as V
 
 --------------------------------------------------------------------------------
 -- Hive interpreter
@@ -44,7 +41,7 @@ runHive p1 p2 =
 
     -- One empty tile stack
     board :: Board
-    board = HexBoard [[[]]] Even 1 1
+    board = HexBoard (V.singleton (V.singleton [])) Even
 
     bugs :: [Bug]
     bugs =
@@ -80,14 +77,11 @@ runHive' game cur_player next_player =
               Queen `notElem` game^.gameCurPlayerBugs ||
               game^.gameCurPlayerPlaced /= 3
 
-            -- The index must be in bounds.
-            , Just z <- boardAtIndex (row, col) (game^.gameBoard)
-
-            -- The index must not have a tile on it.
-            , null (BZ.peek z)
+            -- The index must be in bounds, and must not have a tile on it.
+            , Just [] <- game ^? gameBoard . ix (row, col)
 
             , let neighbors :: [Cell]
-                  neighbors = BZ.neighbors z
+                  neighbors = boardNeighbors (row, col) (game^.gameBoard)
 
                   has_opponent_neighbor :: Bool
                   has_opponent_neighbor = any (\c -> cellOwner c == Just opponent) neighbors
@@ -103,8 +97,9 @@ runHive' game cur_player next_player =
               num_bugs_placed == 1 && has_neighbors ||
               has_neighbors && not has_opponent_neighbor -> do
 
-                let w = game^.gameBoard.boardWidth
-                    h = game^.gameBoard.boardHeight
+                let board = game^.gameBoard
+                    w     = board^.boardWidth
+                    h     = board^.boardHeight
 
                     -- Poke the new tile into place, then possibly grow the
                     -- board by 1 row/col in all 4 directions. This ensures that
@@ -112,13 +107,13 @@ runHive' game cur_player next_player =
                     -- and column indices.
                     board' :: Board
                     board' =
-                          BZ.toBoard
-                        $ BZ.poke [Tile (game^.gamePlayer) bug]
-                        $ (if row == 0   then BZ.insertRowAbove [] else id)
-                        $ (if row == h-1 then BZ.insertRowBelow [] else id)
-                        $ (if col == 0   then BZ.insertColLeft  [] else id)
-                        $ (if col == w-1 then BZ.insertColRight [] else id)
-                        $ z
+                          (if row == 0   then boardPrependRow else id)
+                        $ (if row == h-1 then boardAppendRow  else id)
+                        $ (if col == 0   then boardPrependCol else id)
+                        $ (if col == w-1 then boardAppendCol  else id)
+                        $ over (ix (row, col))
+                               (\_ -> [Tile (game^.gamePlayer) bug])
+                               board
 
                 case boardWinner board' of
                     -- No winner yet - loop with the updated game state and
@@ -156,10 +151,10 @@ runHive' game cur_player next_player =
             , ((row,col):_:_) <- path
 
             -- The index of the first cell must be in bounds.
-            , Just z <- boardAtIndex (row, col) (game^.gameBoard)
+            , Just cell <- game ^? gameBoard . ix (row, col)
 
             -- The tile must belong to the current player
-            , cellOwner (BZ.peek z) == Just (game^.gamePlayer) ->
+            , cellOwner cell == Just (game^.gamePlayer) ->
                 error "TODO"
 
             | otherwise -> invalidMove k
@@ -192,17 +187,6 @@ runHive' game cur_player next_player =
 --------------------------------------------------------------------------------
 -- Misc. utils
 
--- | Zip to the specified index on a board.
-boardAtIndex :: BoardIndex -> Board -> Maybe BoardZ
-boardAtIndex (row, col) =
-    BZ.fromBoard >=>
-    repeatM row BZ.down >=>
-    repeatM col BZ.right
-
--- | Get the winner of this board, if any.
-boardWinner :: Board -> Maybe Winner
-boardWinner _ = Nothing
-
 cellOwner :: Cell -> Maybe Player
 cellOwner xs = xs ^? ix 0 . tilePlayer
 
@@ -218,3 +202,24 @@ repeatM n f = f >=> repeatM (n-1) f
 lengthLessThan2 :: [a] -> Bool
 lengthLessThan2 (_:_:_) = False
 lengthLessThan2 _       = True
+
+-- | Get the winner of this board, if any.
+boardWinner :: Board -> Maybe Winner
+boardWinner _ = Nothing
+
+boardPrependRow :: Board -> Board
+boardPrependRow board =
+    board & boardTiles %~ V.cons (V.replicate (board^.boardWidth) [])
+
+boardAppendRow :: Board -> Board
+boardAppendRow board =
+    board & boardTiles %~ flip V.snoc (V.replicate (board^.boardWidth) [])
+
+boardPrependCol :: Board -> Board
+boardPrependCol board =
+    board & boardTiles.traverse %~ V.cons []
+          & boardParity         %~ flipParity
+
+boardAppendCol :: Board -> Board
+boardAppendCol board =
+    board & boardTiles.traverse %~ flip V.snoc []
