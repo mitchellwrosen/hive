@@ -214,39 +214,59 @@ runHive' game cur_player next_player = do
 -- moved).
 isValidMove :: Bug -> BoardIndex -> NonEmpty BoardIndex -> Board -> Bool
 
--- "One Hive Rule".  'tail' is safe here per the precondition.
+-- "One Hive Rule".
+--
+-- Note that this only checks the number of strongly connected components that
+-- result from removing the piece from the board, so a piece removed from the
+-- edge of the board will pass this check, even though it might become its own
+-- island if moved to its destination.
+--
+-- So, this implements more like 75% of the "One Hive Rule".
+--
+-- ('tail' is safe here per the precondition.)
 isValidMove _ src _ board | boardSCCs (over (ix src) tail board) /= 1 = False
+
+-- A spider slides one cell at a time, and cannot backtrack.
+isValidMove Spider i0 (i1 :| [i2,i3]) board =
+    pieceCanSlide i0 [i1,i2,i3] board &&
+    List.nub [i0,i1,i2,i3] == [i0,i1,i2,i3]
 
 -- A beetle moves to an adjacent tile with at least one neighbor that wasn't
 -- its original position. This prevents a beetle from popping off the edge of
 -- the hive and becoming its own island.
-isValidMove Beetle src (dst :| []) board =
+isValidMove Beetle i0 (i1 :| []) board =
     let
         neighbors :: [BoardIndex]
-        neighbors = map fst (boardNeighbors dst board)
+        neighbors = map fst (boardNeighbors i1 board)
     in
-        cellsAreAdjacent src dst board &&
+        cellsAreAdjacent i0 i1 board &&
         neighbors /= [] &&
-        neighbors /= [src]
+        neighbors /= [i0]
 
--- A queen moves to an adjacent tile unoccupied tile.
-isValidMove Queen src (dst :| []) board =
-    board ^? ix dst == Just [] &&
-    pieceCanSlide src dst board
+-- A queen slides one cell.
+isValidMove Queen i0 (i1 :| []) board =
+    pieceCanSlide i0 [i1] board
 
--- | A piece can slide from one cell to another if they share precicely one
--- neighbor. Zero neighbors means they are too far apart. Two neighbors means
+-- | A piece can slide from one cell to another if:
+--
+--     - The destination is unoccupied.
+--     - The source and destination share precicely one neighbor.
+--
+-- Zero neighbors means they are too far apart. Two neighbors means
 -- there's too small a gap to squeeze through.
-pieceCanSlide :: BoardIndex -> BoardIndex -> Board -> Bool
-pieceCanSlide src dst board =
-    let
-        src_neighbors :: Set ((Int, Int), Cell)
-        src_neighbors = S.fromList (boardNeighbors src board)
-
-        dst_neighbors :: Set ((Int, Int), Cell)
-        dst_neighbors = S.fromList (boardNeighbors dst board)
-    in
-        length (S.intersection src_neighbors dst_neighbors) == 1
+--
+-- Precondition: list of indices contains at least one element.
+pieceCanSlide :: BoardIndex -> [BoardIndex] -> Board -> Bool
+pieceCanSlide i0 is board =
+    -- No cells after the first are occupied (tail is safe per the precondition)
+    and (map (\i -> board ^? ix i == Just []) is) &&
+    -- Each two cells along the path share exactly one neighbor.
+    go (map (\i -> S.fromList (boardNeighbors i board)) (i0:is))
+  where
+    go :: [Set (BoardIndex, Cell)] -> Bool
+    go [] = True -- should never be reached
+    go [_] = True
+    go (s0:s1:ss) = length (S.intersection s0 s1) == 1 && go (s1:ss)
 
 -- | Two cells are adjacent if one of them is a neighbor of the other.
 cellsAreAdjacent :: BoardIndex -> BoardIndex -> Board -> Bool
