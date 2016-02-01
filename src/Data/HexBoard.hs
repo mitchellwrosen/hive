@@ -1,9 +1,11 @@
 {-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TupleSections   #-}
 {-# LANGUAGE TypeFamilies    #-}
 
 module Data.HexBoard
     ( HexBoard(..)
+    , BoardIndex
     , boardTiles
     , boardParity
     , boardWidth
@@ -29,6 +31,14 @@ data Parity
 flipParity :: Parity -> Parity
 flipParity Even = Odd
 flipParity Odd  = Even
+
+-- (row, col)
+--
+-- For example, on a 5-by-5 board,
+--
+--     (0,0) represents the top left tile
+--     (0,4) represents the top right tile
+type BoardIndex = (Int, Int)
 
 -- | Hexagonal board.
 --
@@ -58,10 +68,11 @@ boardWidth = to (\board -> maybe 0 length (board ^? boardTiles . ix 0))
 boardHeight :: Getter (HexBoard a) Int
 boardHeight = boardTiles . to length
 
-boardNeighbors :: (Int, Int) -> HexBoard a -> [a]
-boardNeighbors (row, col) board = catMaybes (map (\i -> board ^? ix i) indices)
+boardNeighbors :: BoardIndex -> HexBoard a -> [(BoardIndex, a)]
+boardNeighbors (row, col) board =
+    catMaybes (map (\i -> fmap (i,) (board ^? ix i)) indices)
   where
-    indices :: [(Int, Int)]
+    indices :: [BoardIndex]
     indices =
         case tileParity of
             Even -> [up, right, downright, down, downleft, left]

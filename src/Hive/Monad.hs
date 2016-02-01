@@ -4,6 +4,7 @@ module Hive.Monad where
 
 import Hive.Types
 
+import Data.List.NonEmpty       (NonEmpty)
 import Control.Monad.Trans.Free
 
 -- | Underlying player action functor.
@@ -19,9 +20,9 @@ data HiveF a
 
     -- Move an already-placed tile.
     | MakeMove
-        -- The path from source cell to dest. cell. Must have at least 2
-        -- elements.
-        [BoardIndex]
+        -- Source cell, and non-empty path to the destination.
+        BoardIndex
+        (NonEmpty BoardIndex)
         -- The continuation; gets Nothing if this was an invalid move.
         (Maybe GameState -> a)
     deriving Functor
@@ -37,5 +38,9 @@ makePlacement
     -> Hive m (Maybe GameState)
 makePlacement bug idx = liftF (MakePlacement bug idx id)
 
-makeMove :: Monad m => [BoardIndex] -> Hive m (Maybe GameState)
-makeMove path = liftF (MakeMove path id)
+makeMove
+    :: Monad m
+    => BoardIndex
+    -> NonEmpty BoardIndex
+    -> Hive m (Maybe GameState)
+makeMove src path = liftF (MakeMove src path id)

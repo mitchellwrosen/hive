@@ -15,9 +15,15 @@ import Control.Lens
 import Control.Monad
 import Control.Monad.Trans.Free
 import Control.Monad.Trans.Class
+import Data.List.NonEmpty        (NonEmpty(..))
+import Data.Maybe
+import Data.Set                  (Set)
+import Data.Vector               (Vector)
 
-import qualified Data.List   as List
-import qualified Data.Vector as V
+import qualified Data.List          as List
+import qualified Data.List.NonEmpty as NE
+import qualified Data.Set           as S
+import qualified Data.Vector        as V
 
 --------------------------------------------------------------------------------
 -- Hive interpreter
@@ -62,7 +68,9 @@ runHive'
     -> (GameState -> Hive m ()) -- Next player logic, waiting for board resulting
                                 --   from current player's move
     -> m ()
-runHive' game cur_player next_player =
+runHive' game cur_player next_player = do
+    let board = game^.gameBoard
+
     runFreeT cur_player >>= \case
         -- The current player's logic has ended, so we have nothing left to
         -- interpret. This shouldn't happen with well-written players.
@@ -78,10 +86,10 @@ runHive' game cur_player next_player =
               game^.gameCurPlayerPlaced /= 3
 
             -- The index must be in bounds, and must not have a tile on it.
-            , Just [] <- game ^? gameBoard . ix (row, col)
+            , Just [] <- board ^? ix (row, col)
 
             , let neighbors :: [Cell]
-                  neighbors = boardNeighbors (row, col) (game^.gameBoard)
+                  neighbors = map snd (boardNeighbors (row, col) board)
 
                   has_opponent_neighbor :: Bool
                   has_opponent_neighbor = any (\c -> cellOwner c == Just opponent) neighbors
@@ -97,9 +105,8 @@ runHive' game cur_player next_player =
               num_bugs_placed == 1 && has_neighbors ||
               has_neighbors && not has_opponent_neighbor -> do
 
-                let board = game^.gameBoard
-                    w     = board^.boardWidth
-                    h     = board^.boardHeight
+                let w = board^.boardWidth
+                    h = board^.boardHeight
 
                     -- Poke the new tile into place, then possibly grow the
                     -- board by 1 row/col in all 4 directions. This ensures that
@@ -143,18 +150,21 @@ runHive' game cur_player next_player =
 
             | otherwise -> invalidMove k
 
-        Free (MakeMove path k)
+        Free (MakeMove src path k)
             -- The queen must have been played already.
             | Queen `notElem` game^.gameCurPlayerBugs
 
-            -- A move must have at least a source and destination cell.
-            , ((row,col):_:_) <- path
-
             -- The index of the first cell must be in bounds.
-            , Just cell <- game ^? gameBoard . ix (row, col)
+            , Just cell <- board ^? ix src
 
-            -- The tile must belong to the current player
-            , cellOwner cell == Just (game^.gamePlayer) ->
+            -- There must be a tile there to move.
+            , (Tile p bug : _) <- cell
+
+            -- The tile must belong to the current player.
+            , p == game^.gamePlayer
+
+            -- The move must be valid per the movement rules of the game.
+            , isValidMove bug src path board ->
                 error "TODO"
 
             | otherwise -> invalidMove k
@@ -183,6 +193,68 @@ runHive' game cur_player next_player =
 
     num_bugs_placed :: Int
     num_bugs_placed = game^.gameP1Placed + game^.gameP2Placed
+
+-- | Is this a valid move?
+--
+-- Checks the following conditions:
+--
+--     - This move doesn't violate the "One Hive Rule" (the tiles must always be
+--       part of the same strongly connected component, even during movement).
+--
+--     - This move doesn't violate the "Freedom to Move Rule" (a piece must be
+--       able to slide freely along its path).
+--
+--     - The per-bug movement rules are adhered to.
+--
+-- However, this function assumes that the given bug is indeed allowed to move
+-- per other game rules, such as whose turn it is, whether or not the queen has
+-- been placed yet, and whether or not any beetles are prohibiting movement.
+--
+-- Precondition: the source tile has at least one bug on it (the bug being
+-- moved).
+isValidMove :: Bug -> BoardIndex -> NonEmpty BoardIndex -> Board -> Bool
+
+-- "One Hive Rule".  'tail' is safe here per the precondition.
+isValidMove _ src _ board | boardSCCs (over (ix src) tail board) /= 1 = False
+
+-- A beetle moves to an adjacent tile with at least one neighbor that wasn't
+-- its original position. This prevents a beetle from popping off the edge of
+-- the hive and becoming its own island.
+isValidMove Beetle src (dst :| []) board =
+    let
+        neighbors :: [BoardIndex]
+        neighbors = map fst (boardNeighbors dst board)
+    in
+        cellsAreAdjacent src dst board &&
+        neighbors /= [] &&
+        neighbors /= [src]
+
+-- A queen moves to an adjacent tile unoccupied tile.
+isValidMove Queen src (dst :| []) board =
+    board ^? ix dst == Just [] &&
+    pieceCanSlide src dst board
+
+-- | A piece can slide from one cell to another if they share precicely one
+-- neighbor. Zero neighbors means they are too far apart. Two neighbors means
+-- there's too small a gap to squeeze through.
+pieceCanSlide :: BoardIndex -> BoardIndex -> Board -> Bool
+pieceCanSlide src dst board =
+    let
+        src_neighbors :: Set ((Int, Int), Cell)
+        src_neighbors = S.fromList (boardNeighbors src board)
+
+        dst_neighbors :: Set ((Int, Int), Cell)
+        dst_neighbors = S.fromList (boardNeighbors dst board)
+    in
+        length (S.intersection src_neighbors dst_neighbors) == 1
+
+-- | Two cells are adjacent if one of them is a neighbor of the other.
+cellsAreAdjacent :: BoardIndex -> BoardIndex -> Board -> Bool
+cellsAreAdjacent src dst board =
+    dst `elem` map fst (boardNeighbors src board)
+
+boardSCCs :: HexBoard a -> Int
+boardSCCs = error "TODO"
 
 --------------------------------------------------------------------------------
 -- Misc. utils

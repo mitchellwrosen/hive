@@ -18,7 +18,7 @@ import GHC.Generics (Generic)
 data Player
     = P1
     | P2
-    deriving (Eq, Generic, Show)
+    deriving (Eq, Generic, Ord, Show)
 
 -- | Bug enum.
 data Bug
@@ -27,13 +27,13 @@ data Bug
     | Spider
     | Beetle
     | Queen
-    deriving (Eq, Generic, Show)
+    deriving (Eq, Generic, Ord, Show)
 
 -- | A tile is a Bug that belongs to a Player.
 data Tile = Tile
     { _tilePlayer :: Player
     , _tileBug    :: Bug
-    } deriving (Eq, Generic, Show)
+    } deriving (Eq, Generic, Ord, Show)
 makeLenses ''Tile
 
 data Winner
@@ -47,14 +47,6 @@ data GameState
     = GameOver Winner
     | GameActive Game
     deriving (Eq, Generic, Show)
-
--- (row, col)
---
--- For example, on a 5-by-5 board,
---
---     (0,0) represents the top left tile
---     (0,4) represents the top right tile
-type BoardIndex = (Int, Int)
 
 -- A single cell is a stack of tiles, where the head of the list represents the
 -- top of the stack. This will only ever be a beetle or a mosquito, per the
