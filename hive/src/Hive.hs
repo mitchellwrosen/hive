@@ -3,10 +3,9 @@
 
 module Hive
     ( runHive
-    , makeMove
-    , makePlacement
-    , module Hive.Types
     , module Control.Monad.Trans.Class
+    , module Hive.Monad
+    , module Hive.Types
     ) where
 
 import Data.HexBoard
@@ -73,89 +72,97 @@ runHive' game cur_player next_player =
         Pure () -> pure ()
 
         Free (MakePlacement bug (row, col) k)
-            -- Placing a bug that's not in the current player's supply is an
-            -- invalid placement.
-            | bug `notElem` game^.gameCurPlayerBugs -> invalidMove k
+            -- The current player must have the bug in supply.
+            | bug `elem` game^.gameCurPlayerBugs
 
             -- Queen must be placed by move 4.
-            | bug /= Queen &&
-              Queen `elem` game^.gameCurPlayerBugs &&
-              game^.gameCurPlayerPlaced == 3 -> invalidMove k
+            , bug == Queen                            ||
+              Queen `notElem` game^.gameCurPlayerBugs ||
+              game^.gameCurPlayerPlaced /= 3
 
-            | otherwise ->
-                case boardAtIndex (row, col) (game^.gameBoard) of
-                    Just z | null (BZ.peek z) -> do
-                        let neighbors :: [Cell]
-                            neighbors = BZ.neighbors z
+            -- The index must be in bounds.
+            , Just z <- boardAtIndex (row, col) (game^.gameBoard)
 
-                            -- Does the focused tile have any enemy neighbors?
-                            has_opponent_neighbor :: Bool
-                            has_opponent_neighbor = any p neighbors
-                              where
-                                p :: Cell -> Bool
-                                p cell = cellOwner cell == Just opponent
+            -- The index must not have a tile on it.
+            , null (BZ.peek z)
 
-                                opponent :: Player
-                                opponent = nextPlayer (game^.gamePlayer)
+            , let neighbors :: [Cell]
+                  neighbors = BZ.neighbors z
 
-                            -- Does the focused tile have no neighbors whatsoever?
-                            has_no_neighbors :: Bool
-                            has_no_neighbors = all null neighbors
+                  has_opponent_neighbor :: Bool
+                  has_opponent_neighbor = any (\c -> cellOwner c == Just opponent) neighbors
 
-                            num_placed :: Int
-                            num_placed = game^.gameP1Placed + game^.gameP2Placed
+                  has_neighbors :: Bool
+                  has_neighbors = not (all null neighbors)
 
-                        if -- Turn two or later: tile must not have any opponent
-                           -- neighbors, and must also have at least one
-                           -- neighbor
-                           (num_placed > 1 && (has_opponent_neighbor || has_no_neighbors)) ||
-                           -- Turn one: tile must have at least one neighbor
-                           (num_placed == 1 && has_no_neighbors)
-                           -- Turn zero: neither of these two conditions apply
-                            then invalidMove k
-                            else do
-                                let w = game^.gameBoard.boardWidth
-                                    h = game^.gameBoard.boardHeight
+            -- If this is the FIRST tile, ok.
+            -- If this is the SECOND TILE, it must have at least one neighbor.
+            -- If this is the THIRD OR LATER tile, it must have at least one
+            -- neighbor, none of which can belong to the opponent.
+            , num_bugs_placed == 0                  ||
+              num_bugs_placed == 1 && has_neighbors ||
+              has_neighbors && not has_opponent_neighbor -> do
 
-                                    board' :: Board
-                                    board' =
-                                          BZ.toBoard
-                                        $ BZ.poke [Tile (game^.gamePlayer) bug]
-                                        $ (if row == 0   then BZ.insertRowAbove [] else id)
-                                        $ (if row == h-1 then BZ.insertRowBelow [] else id)
-                                        $ (if col == 0   then BZ.insertColLeft  [] else id)
-                                        $ (if col == w-1 then BZ.insertColRight [] else id)
-                                        $ z
+                let w = game^.gameBoard.boardWidth
+                    h = game^.gameBoard.boardHeight
 
-                                case boardWinner board' of
-                                    Nothing -> do
-                                        let game' = game
-                                              & gameBoard           .~ board'
-                                              & gamePlayer          %~ nextPlayer
-                                              & gameCurPlayerBugs   %~ List.delete bug
-                                              & gameCurPlayerPlaced %~ (+1)
+                    -- Poke the new tile into place, then possibly grow the
+                    -- board by 1 row/col in all 4 directions. This ensures that
+                    -- valid moves can be expressed naturally in terms of row
+                    -- and column indices.
+                    board' :: Board
+                    board' =
+                          BZ.toBoard
+                        $ BZ.poke [Tile (game^.gamePlayer) bug]
+                        $ (if row == 0   then BZ.insertRowAbove [] else id)
+                        $ (if row == h-1 then BZ.insertRowBelow [] else id)
+                        $ (if col == 0   then BZ.insertColLeft  [] else id)
+                        $ (if col == w-1 then BZ.insertColRight [] else id)
+                        $ z
 
-                                        runHive'
-                                            game'
-                                            (next_player (GameActive game'))
-                                            (\result -> k (Just result))
+                case boardWinner board' of
+                    -- No winner yet - loop with the updated game state and
+                    -- players.
+                    Nothing -> do
+                        let game' = game
+                              & gameBoard           .~ board'
+                              & gamePlayer          %~ nextPlayer
+                              & gameCurPlayerBugs   %~ List.delete bug
+                              & gameCurPlayerPlaced %~ (+1)
 
-                                    Just winner -> do
-                                        -- Run side-effects of player logic
-                                        -- resulting from a game ending, but
-                                        -- don't bother continuing to interpret
-                                        -- the player actions.
-                                        runFreeT $ do
-                                            k (Just (GameOver winner))
-                                            next_player (GameOver winner)
-                                        pure ()
+                        runHive'
+                            game'
+                            (next_player (GameActive game'))
+                            (\result -> k (Just result))
 
-                    -- This index is out of bounds, or there's one or more tiles
-                    -- here. Either way, it's an invalid placement.
-                    _ -> invalidMove k
+                    -- If the game's over, run side-effects of player logic one
+                    -- last time (to inform them of the game ending), but don't
+                    -- bother continuing to interpret the AST. An oddly written
+                    -- player may attempt to make a move after the game is said
+                    -- to be over, but we don't care, we just stop interpreting.
+                    Just winner -> do
+                        runFreeT $ do
+                            k (Just (GameOver winner))
+                            next_player (GameOver winner)
+                        pure ()
 
-        Free (MakeMove path k) ->
-            error "TODO"
+            | otherwise -> invalidMove k
+
+        Free (MakeMove path k)
+            -- The queen must have been played already.
+            | Queen `notElem` game^.gameCurPlayerBugs
+
+            -- A move must have at least a source and destination cell.
+            , ((row,col):_:_) <- path
+
+            -- The index of the first cell must be in bounds.
+            , Just z <- boardAtIndex (row, col) (game^.gameBoard)
+
+            -- The tile must belong to the current player
+            , cellOwner (BZ.peek z) == Just (game^.gamePlayer) ->
+                error "TODO"
+
+            | otherwise -> invalidMove k
   where
     -- Recurse with the same game state, providing Nothing to the current
     -- player's continuation to indicate an invalid move.
@@ -175,6 +182,12 @@ runHive' game cur_player next_player =
         case game^.gamePlayer of
             P1 -> gameP1Placed
             P2 -> gameP2Placed
+
+    opponent :: Player
+    opponent = nextPlayer (game^.gamePlayer)
+
+    num_bugs_placed :: Int
+    num_bugs_placed = game^.gameP1Placed + game^.gameP2Placed
 
 --------------------------------------------------------------------------------
 -- Misc. utils
@@ -201,3 +214,7 @@ nextPlayer P2 = P1
 repeatM :: Monad m => Int -> (a -> m a) -> a -> m a
 repeatM 0 _ = pure
 repeatM n f = f >=> repeatM (n-1) f
+
+lengthLessThan2 :: [a] -> Bool
+lengthLessThan2 (_:_:_) = False
+lengthLessThan2 _       = True

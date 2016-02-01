@@ -1,20 +1,25 @@
+{-# LANGUAGE DeriveGeneric         #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TemplateHaskell       #-}
 {-# LANGUAGE TypeFamilies          #-}
 
-module Hive.Types where
+module Hive.Types
+    ( module Hive.Types
+    , module Data.HexBoard
+    ) where
 
-import Data.HexBoard        (HexBoard)
+import Data.HexBoard
 import Data.HexBoard.Zipper (HexBoardZ)
 
 import Control.Lens
+import GHC.Generics (Generic)
 
 -- | Player enum.
 data Player
     = P1
     | P2
-    deriving (Eq, Show)
+    deriving (Eq, Generic, Show)
 
 -- | Bug enum.
 data Bug
@@ -23,24 +28,26 @@ data Bug
     | Spider
     | Beetle
     | Queen
-    deriving (Eq, Show)
+    deriving (Eq, Generic, Show)
 
 -- | A tile is a Bug that belongs to a Player.
 data Tile = Tile
     { _tilePlayer :: Player
     , _tileBug    :: Bug
-    } deriving (Eq, Show)
+    } deriving (Eq, Generic, Show)
 makeLenses ''Tile
 
 data Winner
     = P1Wins
     | P2Wins
     | BothWin
+    deriving (Eq, Generic, Show)
 
 -- | The state of a game: it's over, or it's active.
 data GameState
     = GameOver Winner
     | GameActive Game
+    deriving (Eq, Generic, Show)
 
 -- (row, col)
 --
@@ -66,5 +73,5 @@ data Game = Game
     , _gameP2Bugs   :: ![Bug]  -- Player 2's bugs
     , _gameP1Placed :: !Int    -- # of bugs P1 has placed
     , _gameP2Placed :: !Int    -- # of bugs P2 has placed
-    }
+    } deriving (Eq, Generic, Show)
 makeLenses ''Game

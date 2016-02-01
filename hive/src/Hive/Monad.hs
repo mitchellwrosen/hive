@@ -10,13 +10,20 @@ import Control.Monad.Trans.Free
 data HiveF a
     -- Place a new tile.
     = MakePlacement
-        Bug                    -- The bug to place
-        BoardIndex             -- The cell to place it at
-        (Maybe GameState -> a) -- The resulting board state (after opp. goes)
+        -- The bug to place
+        Bug
+        -- The cell to place it at
+        BoardIndex
+        -- The continuation; gets Nothing if this was an invalid placement.
+        (Maybe GameState -> a)
+
     -- Move an already-placed tile.
     | MakeMove
-        [BoardIndex]           -- The path from source cell to dest. cell
-        (Maybe GameState -> a) -- The resulting board state (after opp. goes)
+        -- The path from source cell to dest. cell. Must have at least 2
+        -- elements.
+        [BoardIndex]
+        -- The continuation; gets Nothing if this was an invalid move.
+        (Maybe GameState -> a)
     deriving Functor
 
 -- The Hive monad, where player actions and inner monad actions are

@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric   #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module Data.HexBoard
@@ -11,12 +12,13 @@ module Data.HexBoard
     ) where
 
 import Control.Lens
+import GHC.Generics (Generic)
 
 -- Even or odd board parity.
 data Parity
     = Even
     | Odd
-    deriving (Eq, Show)
+    deriving (Eq, Generic, Show)
 
 flipParity :: Parity -> Parity
 flipParity Even = Odd
@@ -37,5 +39,5 @@ data HexBoard a = HexBoard
     , _boardParity :: Parity
     , _boardWidth  :: !Int
     , _boardHeight :: !Int
-    } deriving Show
+    } deriving (Eq, Generic, Show)
 makeLenses ''HexBoard
