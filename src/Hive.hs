@@ -226,6 +226,10 @@ isValidMove :: Bug -> BoardIndex -> NonEmpty BoardIndex -> Board -> Bool
 -- ('tail' is safe here per the precondition.)
 isValidMove _ src _ board | boardSCCs (over (ix src) tail board) /= 1 = False
 
+-- An ant slides around.
+isValidMove Ant i0 (i1 :| is) board =
+    pieceCanSlide i0 (i1:is) board
+
 -- A spider slides one cell at a time, and cannot backtrack.
 isValidMove Spider i0 (i1 :| [i2,i3]) board =
     pieceCanSlide i0 [i1,i2,i3] board &&
