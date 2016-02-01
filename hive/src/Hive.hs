@@ -1,19 +1,20 @@
-{-# LANGUAGE DeriveFunctor       #-}
 {-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE RecordWildCards     #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Hive
-    ( Hive
-    , makePlacement
+    ( runHive
     , makeMove
-    , runHive
+    , makePlacement
     , module Hive.Types
     , module Control.Monad.Trans.Class
     ) where
 
-import Hive.BoardZipper
+import Data.HexBoard
+import Data.HexBoard.Zipper (HexBoardZ)
+import Hive.Monad
 import Hive.Types
+
+import qualified Data.HexBoard.Zipper as BZ
 
 import Control.Lens
 import Control.Monad
@@ -23,63 +24,28 @@ import Control.Monad.Trans.Class
 import qualified Data.List as List
 
 --------------------------------------------------------------------------------
--- Hive monad
-
--- | Underlying Hive action functor.
-data HiveF a
-    -- Place a new tile.
-    = MakePlacement
-        Bug                      -- The bug to place
-        BoardIndex               -- The cell to place it at
-        (Maybe TurnResult -> a)  -- The resulting board state (after opp. goes)
-    -- Move an already-placed tile.
-    | MakeMove
-        [BoardIndex]             -- The path from source cell to dest. cell
-        (Maybe TurnResult -> a)  -- The resulting board state (after opp. goes)
-    deriving Functor
-
--- The Hive monad, where Hive actions and inner monad actions are interleaved.
-type Hive m a = FreeT HiveF m a
-
---------------------------------------------------------------------------------
--- Hive DSL
-
-makePlacement
-    :: Monad m
-    => Bug
-    -> BoardIndex
-    -> Hive m (Maybe TurnResult)
-makePlacement bug idx = liftF (MakePlacement bug idx id)
-
-makeMove :: Monad m => [BoardIndex] -> Hive m (Maybe TurnResult)
-makeMove path = liftF (MakeMove path id)
-
---------------------------------------------------------------------------------
 -- Hive interpreter
 
 runHive
     :: Monad m
-    => (Board -> [Bug] -> [Bug] -> Hive m ())
-    -> (Board -> [Bug] -> [Bug] -> Hive m ())
+    => (Game -> Hive m ())
+    -> (Game -> Hive m ())
     -> m ()
 runHive p1 p2 =
     runHive'
         game
-        (p1 board bugs bugs)
+        (p1 game)
         -- There's no way for the game to have a winner after just 1 turn,
         -- so this partial pattern match is ok.
         (\case
-            GameCont board' _ bugs' ->
-                p2 board' -- board with 1 bug on it
-                   bugs   -- p2 hasn't gone yet, so just re-use initial bugs
-                   bugs') -- p1 has played one bug
+            GameActive game' -> p2 game')
   where
     game :: Game
     game = Game board P1 bugs bugs 0 0
 
     -- One empty tile stack
     board :: Board
-    board = Board [[[]]] Even 1 1
+    board = HexBoard [[[]]] Even 1 1
 
     bugs :: [Bug]
     bugs =
@@ -95,10 +61,10 @@ runHive p1 p2 =
 runHive'
     :: forall m.
        Monad m
-    => Game                                    -- Game board
-    -> Hive m ()                               -- Current player logic
-    -> (TurnResult -> Hive m ())               -- Next player logic, waiting for board resulting
-                                               --   from current player's move
+    => Game                     -- Game board
+    -> Hive m ()                -- Current player logic
+    -> (GameState -> Hive m ()) -- Next player logic, waiting for board resulting
+                                --   from current player's move
     -> m ()
 runHive' game cur_player next_player =
     runFreeT cur_player >>= \case
@@ -118,16 +84,16 @@ runHive' game cur_player next_player =
 
             | otherwise ->
                 case boardAtIndex (row, col) (game^.gameBoard) of
-                    Just z | null (bzPeek z) -> do
-                        let neighbors :: [TileStack]
-                            neighbors = bzNeighbors z
+                    Just z | null (BZ.peek z) -> do
+                        let neighbors :: [Cell]
+                            neighbors = BZ.neighbors z
 
                             -- Does the focused tile have any enemy neighbors?
                             has_opponent_neighbor :: Bool
                             has_opponent_neighbor = any p neighbors
                               where
-                                p :: TileStack -> Bool
-                                p tile = tileOwner tile == Just opponent
+                                p :: Cell -> Bool
+                                p cell = cellOwner cell == Just opponent
 
                                 opponent :: Player
                                 opponent = nextPlayer (game^.gamePlayer)
@@ -153,12 +119,12 @@ runHive' game cur_player next_player =
 
                                     board' :: Board
                                     board' =
-                                          bzToBoard
-                                        $ bzPoke [Tile (game^.gamePlayer) bug]
-                                        $ (if row == 0   then bzInsertRowAbove else id)
-                                        $ (if row == h-1 then bzInsertRowBelow else id)
-                                        $ (if col == 0   then bzInsertColLeft  else id)
-                                        $ (if col == w-1 then bzInsertColRight else id)
+                                          BZ.toBoard
+                                        $ BZ.poke [Tile (game^.gamePlayer) bug]
+                                        $ (if row == 0   then BZ.insertRowAbove [] else id)
+                                        $ (if row == h-1 then BZ.insertRowBelow [] else id)
+                                        $ (if col == 0   then BZ.insertColLeft  [] else id)
+                                        $ (if col == w-1 then BZ.insertColRight [] else id)
                                         $ z
 
                                 case boardWinner board' of
@@ -171,7 +137,7 @@ runHive' game cur_player next_player =
 
                                         runHive'
                                             game'
-                                            (next_player (gameToResult game'))
+                                            (next_player (GameActive game'))
                                             (\result -> k (Just result))
 
                                     Just winner -> do
@@ -193,7 +159,7 @@ runHive' game cur_player next_player =
   where
     -- Recurse with the same game state, providing Nothing to the current
     -- player's continuation to indicate an invalid move.
-    invalidMove :: (Maybe TurnResult -> Hive m ()) -> m ()
+    invalidMove :: (Maybe GameState -> Hive m ()) -> m ()
     invalidMove k = runHive' game (k Nothing) next_player
 
     -- Lens onto the current player's unplaced bugs.
@@ -210,18 +176,22 @@ runHive' game cur_player next_player =
             P1 -> gameP1Placed
             P2 -> gameP2Placed
 
+--------------------------------------------------------------------------------
+-- Misc. utils
+
 -- | Zip to the specified index on a board.
-boardAtIndex :: BoardIndex -> Board -> Maybe BoardZipper
-boardAtIndex (row, col) board =
-    repeatM row bzDown (bzFromBoard board) >>= repeatM col bzRight
+boardAtIndex :: BoardIndex -> Board -> Maybe BoardZ
+boardAtIndex (row, col) =
+    BZ.fromBoard >=>
+    repeatM row BZ.down >=>
+    repeatM col BZ.right
 
 -- | Get the winner of this board, if any.
 boardWinner :: Board -> Maybe Winner
 boardWinner _ = Nothing
 
-tileOwner :: TileStack -> Maybe Player
-tileOwner [] = Nothing
-tileOwner (Tile player _ : _) = Just player
+cellOwner :: Cell -> Maybe Player
+cellOwner xs = xs ^? ix 0 . tilePlayer
 
 nextPlayer :: Player -> Player
 nextPlayer P1 = P2
@@ -231,11 +201,3 @@ nextPlayer P2 = P1
 repeatM :: Monad m => Int -> (a -> m a) -> a -> m a
 repeatM 0 _ = pure
 repeatM n f = f >=> repeatM (n-1) f
-
--- | Strip a Game to just the elements that are passed on to players in a
--- TurnResult.
-gameToResult :: Game -> TurnResult
-gameToResult Game{..} = GameCont _gameBoard bugs1 bugs2
-  where
-    bugs1 = if _gamePlayer == P1 then _gameP1Bugs else _gameP2Bugs
-    bugs2 = if _gamePlayer == P2 then _gameP1Bugs else _gameP2Bugs

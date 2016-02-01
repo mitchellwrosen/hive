@@ -5,20 +5,18 @@
 
 module Hive.Types where
 
+import Data.HexBoard        (HexBoard)
+import Data.HexBoard.Zipper (HexBoardZ)
+
 import Control.Lens
 
--- | Player 1 or Player 2
+-- | Player enum.
 data Player
     = P1
     | P2
     deriving (Eq, Show)
 
-data Color
-    = White
-    | Black
-    deriving (Eq, Show)
-
--- | Bug type.
+-- | Bug enum.
 data Bug
     = Ant
     | Grasshopper
@@ -27,13 +25,22 @@ data Bug
     | Queen
     deriving (Eq, Show)
 
--- | A tile is a Bug and belongs to a Player.
-data Tile
-    = Tile Player Bug
-    deriving (Eq, Show)
+-- | A tile is a Bug that belongs to a Player.
+data Tile = Tile
+    { _tilePlayer :: Player
+    , _tileBug    :: Bug
+    } deriving (Eq, Show)
+makeLenses ''Tile
 
--- A stack of tiles, with the topmost tile at the head of the list.
-type TileStack = [Tile]
+data Winner
+    = P1Wins
+    | P2Wins
+    | BothWin
+
+-- | The state of a game: it's over, or it's active.
+data GameState
+    = GameOver Winner
+    | GameActive Game
 
 -- (row, col)
 --
@@ -43,52 +50,14 @@ type TileStack = [Tile]
 --     (0,4) represents the top right tile
 type BoardIndex = (Int, Int)
 
--- | A path through the game board that a piece takes.
---
--- Invariant: this list always contains at least two elements.
-type Path = [BoardIndex]
+-- A single cell is a stack of tiles, where the head of the list represents the
+-- top of the stack. This will only ever be a beetle or a mosquito, per the
+-- game rules.
+type Cell = [Tile]
 
--- Even or odd board parity.
--- http://www.redblobgames.com/grids/hexagons/#coordinates
-data Parity
-    = Even
-    | Odd
-    deriving (Eq, Show)
+type Board = HexBoard Cell
 
--- | Hive game board, represented as a 2D array of vertical stacks of hexagonal
--- tiles. When a player places a piece on the edge of the board, it resizes to
--- accomodate one additional row or column. Thus, the board always has enough
--- "room" for any possible move.
---
--- Uses the "odd-q" or "even-q" vertical layout (tracked by boardParity field),
--- as depected here:
--- http://www.redblobgames.com/grids/hexagons/#coordinates
---
--- Invariant: each row contains the same number of columns as the others (the
---            board is a rectangle)
--- Invariant: each row contains one or more columns (so, perhaps
---            a more appropriate type is [NonEmpty TileStack])
--- Invariant: there is always at least one row (the empty board is 1x1, not 0x0)
-data Board = Board
-    { _boardTiles  :: [[TileStack]]
-    , _boardParity :: Parity
-    , _boardWidth  :: !Int
-    , _boardHeight :: !Int
-    } deriving Show
-makeLenses ''Board
-
--- | The winner of a game.
-data Winner
-    = P1Wins
-    | P2Wins
-    | BothWin
-    deriving Show
-
--- | The result of taking a single turn: game over (possibly after
--- opponent takes turn), or an updated game (after opponent takes turn).
-data TurnResult
-    = GameOver Winner
-    | GameCont Board [Bug] [Bug]
+type BoardZ = HexBoardZ Cell
 
 data Game = Game
     { _gameBoard    :: !Board  -- Game board
