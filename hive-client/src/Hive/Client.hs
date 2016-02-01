@@ -1,1 +1,0 @@
-module Hive.Client where

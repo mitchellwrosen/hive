@@ -1,9 +1,0 @@
-resolver: lts-3.0
-packages:
-- .
-- hive
-docker:
-    enable: true
-    repo: "fpco/stack-ghcjs-build"
-compiler: ghcjs-0.1.0_ghc-7.10.2
-compiler-check: match-exact
