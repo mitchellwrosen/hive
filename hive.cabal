@@ -19,6 +19,7 @@ library
   other-modules:       Data.HexBoard
   build-depends:       base >= 4.7 && < 5
                      , containers
+                     , extra
                      , lens
                      , free
                      , semigroups

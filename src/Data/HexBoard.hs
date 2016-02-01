@@ -11,8 +11,10 @@ module Data.HexBoard
     , boardWidth
     , boardHeight
     , boardNeighbors
+    , boardAdjacency
     , Parity(..)
     , flipParity
+    , Adjacency(..)
     ) where
 
 import Control.Lens
@@ -31,6 +33,16 @@ data Parity
 flipParity :: Parity -> Parity
 flipParity Even = Odd
 flipParity Odd  = Even
+
+-- One cell's relation to another.
+data Adjacency
+    = Up
+    | UpRight
+    | DownRight
+    | Down
+    | DownLeft
+    | UpLeft
+    deriving Eq
 
 -- (row, col)
 --
@@ -74,7 +86,7 @@ boardNeighbors (row, col) board =
   where
     indices :: [BoardIndex]
     indices =
-        case tileParity of
+        case tileParity col (board^.boardParity) of
             Even -> [up, right, downright, down, downleft, left]
             Odd  -> [up, upright, right, down, left, upleft]
 
@@ -87,12 +99,32 @@ boardNeighbors (row, col) board =
     left      = (row,   col-1)
     upleft    = (row-1, col-1)
 
+boardAdjacency :: HexBoard a -> BoardIndex -> BoardIndex -> Maybe Adjacency
+boardAdjacency board (r0,c0) (r1,c1) =
+    case tileParity c0 (board^.boardParity) of
+        Even
+            | r0 == r1+1 && c0 == c1   -> Just Up
+            | r0 == r1   && c0 == c1+1 -> Just UpLeft
+            | r0 == r1   && c0 == c1-1 -> Just UpRight
+            | r0 == r1-1 && c0 == c1+1 -> Just DownLeft
+            | r0 == r1-1 && c0 == c1   -> Just Down
+            | r0 == r1-1 && c0 == c1-1 -> Just DownRight
+            | otherwise                -> Nothing
+        Odd
+            | r0 == r1+1 && c0 == c1+1 -> Just UpLeft
+            | r0 == r1+1 && c0 == c1   -> Just Up
+            | r0 == r1+1 && c0 == c1-1 -> Just UpRight
+            | r0 == r1   && c0 == c1+1 -> Just DownLeft
+            | r0 == r1   && c0 == c1-1 -> Just DownRight
+            | r0 == r1-1 && c0 == c1   -> Just Down
+            | otherwise                -> Nothing
+
+tileParity :: Int -> Parity -> Parity
+tileParity col p1
+    | colParity == p1 = Even
+    | otherwise = Odd
+  where
     colParity :: Parity
     colParity
         | even col  = Even
-        | otherwise = Odd
-
-    tileParity :: Parity
-    tileParity
-        | board^.boardParity == colParity = Even
         | otherwise = Odd

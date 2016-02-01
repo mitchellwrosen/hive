@@ -21,6 +21,7 @@ import Data.Set                  (Set)
 import Data.Vector               (Vector)
 
 import qualified Data.List          as List
+import qualified Data.List.Extra    as List
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Set           as S
 import qualified Data.Vector        as V
@@ -86,7 +87,7 @@ runHive' game cur_player next_player = do
               game^.gameCurPlayerPlaced /= 3
 
             -- The index must be in bounds, and must not have a tile on it.
-            , Just [] <- board ^? ix (row, col)
+            , cellIsUnoccupied (row, col) board
 
             , let neighbors :: [Cell]
                   neighbors = map snd (boardNeighbors (row, col) board)
@@ -226,9 +227,31 @@ isValidMove :: Bug -> BoardIndex -> NonEmpty BoardIndex -> Board -> Bool
 -- ('tail' is safe here per the precondition.)
 isValidMove _ src _ board | boardSCCs (over (ix src) tail board) /= 1 = False
 
--- An ant slides around.
+-- An ant slides around any number of cells.
 isValidMove Ant i0 (i1 :| is) board =
     pieceCanSlide i0 (i1:is) board
+
+-- A grasshopper hops over one or more occupied cells in a straight line.
+isValidMove Grasshopper i0 (i1 :| (i2:is)) board =
+    -- All cells along the path except for the last are occupied.
+    and (map (\i -> cellIsOccupied i board) path) &&
+    -- The last cell is unoccupied.
+    not (cellIsOccupied dst board) &&
+    -- Path forms a straight line, i.e. the adjacency relationship between
+    -- consecutive cells is the same throughout. Note that this depends on
+    -- the parity of the board, and is not as simple as taking the integer
+    -- differences between the indices.
+    formsStraightLine (i0:i1:i2:is)
+  where
+    -- 'path' is the (bad) name for the cells in between the src and dst cell.
+    Just (path, dst) = List.unsnoc (i1:i2:is)
+
+    -- Precondition: list has at least three elements.
+    formsStraightLine :: [BoardIndex] -> Bool
+    formsStraightLine (j0:j1:j2:js) =
+        boardAdjacency board j0 j1 == boardAdjacency board j1 j2 &&
+        formsStraightLine (j1:j2:js)
+    formsStraightLine _ = True -- should only be hit with 2 element list
 
 -- A spider slides one cell at a time, and cannot backtrack.
 isValidMove Spider i0 (i1 :| [i2,i3]) board =
@@ -243,7 +266,7 @@ isValidMove Beetle i0 (i1 :| []) board =
         neighbors :: [BoardIndex]
         neighbors = map fst (boardNeighbors i1 board)
     in
-        cellsAreAdjacent i0 i1 board &&
+        cellsAreAdjacent board i0 i1 &&
         neighbors /= [] &&
         neighbors /= [i0]
 
@@ -263,7 +286,7 @@ isValidMove Queen i0 (i1 :| []) board =
 pieceCanSlide :: BoardIndex -> [BoardIndex] -> Board -> Bool
 pieceCanSlide i0 is board =
     -- No cells after the first are occupied (tail is safe per the precondition)
-    and (map (\i -> board ^? ix i == Just []) is) &&
+    and (map (\i -> cellIsUnoccupied i board) is) &&
     -- Each two cells along the path share exactly one neighbor.
     go (map (\i -> S.fromList (boardNeighbors i board)) (i0:is))
   where
@@ -273,9 +296,17 @@ pieceCanSlide i0 is board =
     go (s0:s1:ss) = length (S.intersection s0 s1) == 1 && go (s1:ss)
 
 -- | Two cells are adjacent if one of them is a neighbor of the other.
-cellsAreAdjacent :: BoardIndex -> BoardIndex -> Board -> Bool
-cellsAreAdjacent src dst board =
+cellsAreAdjacent :: Board -> BoardIndex -> BoardIndex -> Bool
+cellsAreAdjacent board src dst =
     dst `elem` map fst (boardNeighbors src board)
+
+-- | Is this cell occupied by at least one tile?
+cellIsOccupied :: BoardIndex -> Board -> Bool
+cellIsOccupied i board = isJust (board ^? ix i . _head)
+
+-- | Is this cell unoccuped (but still in bounds)?
+cellIsUnoccupied :: BoardIndex -> Board -> Bool
+cellIsUnoccupied i board = board ^? ix i == Just []
 
 boardSCCs :: HexBoard a -> Int
 boardSCCs = error "TODO"
