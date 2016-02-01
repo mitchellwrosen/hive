@@ -35,23 +35,12 @@ data Tile
 -- A stack of tiles, with the topmost tile at the head of the list.
 type TileStack = [Tile]
 
--- | Direction from a tile.
--- data Adjacency
---     = UpLeft
---     | Up
---     | UpRight
---     | DownRight
---     | Down
---     | DownLeft
---     | Center -- Directly on top, like a beetle
---     deriving (Eq, Show)
-
--- (col, row)
+-- (row, col)
 --
 -- For example, on a 5-by-5 board,
 --
 --     (0,0) represents the top left tile
---     (4,0) represents the top right tile
+--     (0,4) represents the top right tile
 type BoardIndex = (Int, Int)
 
 -- | A path through the game board that a piece takes.
@@ -59,12 +48,20 @@ type BoardIndex = (Int, Int)
 -- Invariant: this list always contains at least two elements.
 type Path = [BoardIndex]
 
+-- Even or odd board parity.
+-- http://www.redblobgames.com/grids/hexagons/#coordinates
+data Parity
+    = Even
+    | Odd
+    deriving (Eq, Show)
+
 -- | Hive game board, represented as a 2D array of vertical stacks of hexagonal
 -- tiles. When a player places a piece on the edge of the board, it resizes to
 -- accomodate one additional row or column. Thus, the board always has enough
 -- "room" for any possible move.
 --
--- Uses the "odd-q" vertical layout, as depected here:
+-- Uses the "odd-q" or "even-q" vertical layout (tracked by boardParity field),
+-- as depected here:
 -- http://www.redblobgames.com/grids/hexagons/#coordinates
 --
 -- Invariant: each row contains the same number of columns as the others (the
@@ -72,13 +69,13 @@ type Path = [BoardIndex]
 -- Invariant: each row contains one or more columns (so, perhaps
 --            a more appropriate type is [NonEmpty TileStack])
 -- Invariant: there is always at least one row (the empty board is 1x1, not 0x0)
-newtype Board = Board [[TileStack]]
-  deriving Show
-makeWrapped ''Board
-
--- Traversal over all the tiles on the board.
-boardTiles :: Traversal' Board Tile
-boardTiles = _Wrapped . traverse . traverse . traverse
+data Board = Board
+    { _boardTiles  :: [[TileStack]]
+    , _boardParity :: Parity
+    , _boardWidth  :: !Int
+    , _boardHeight :: !Int
+    } deriving Show
+makeLenses ''Board
 
 -- | The winner of a game.
 data Winner
@@ -94,11 +91,11 @@ data TurnResult
     | GameCont Board [Bug] [Bug]
 
 data Game = Game
-    { _gameBoard    :: Board  -- Game board
-    , _gamePlayer   :: Player -- Current player
-    , _gameP1Bugs   :: [Bug]  -- Player 1's bugs
-    , _gameP2Bugs   :: [Bug]  -- Player 2's bugs
-    , _gameP1Placed :: Int    -- # of bugs P1 has placed
-    , _gameP2Placed :: Int    -- # of bugs P2 has placed
+    { _gameBoard    :: !Board  -- Game board
+    , _gamePlayer   :: !Player -- Current player
+    , _gameP1Bugs   :: ![Bug]  -- Player 1's bugs
+    , _gameP2Bugs   :: ![Bug]  -- Player 2's bugs
+    , _gameP1Placed :: !Int    -- # of bugs P1 has placed
+    , _gameP2Placed :: !Int    -- # of bugs P2 has placed
     }
 makeLenses ''Game

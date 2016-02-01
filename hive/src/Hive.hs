@@ -79,7 +79,7 @@ runHive p1 p2 =
 
     -- One empty tile stack
     board :: Board
-    board = Board [[[]]]
+    board = Board [[[]]] Even 1 1
 
     bugs :: [Bug]
     bugs =
@@ -106,7 +106,7 @@ runHive' game cur_player next_player =
         -- interpret. This shouldn't happen with well-written players.
         Pure () -> pure ()
 
-        Free (MakePlacement bug (x,y) k)
+        Free (MakePlacement bug (row, col) k)
             -- Placing a bug that's not in the current player's supply is an
             -- invalid placement.
             | bug `notElem` game^.gameCurPlayerBugs -> invalidMove k
@@ -117,8 +117,8 @@ runHive' game cur_player next_player =
               game^.gameCurPlayerPlaced == 3 -> invalidMove k
 
             | otherwise ->
-                case boardAtIndex (x,y) (game^.gameBoard) of
-                    Just z | bzPeek z == [] -> do
+                case boardAtIndex (row, col) (game^.gameBoard) of
+                    Just z | null (bzPeek z) -> do
                         let neighbors :: [TileStack]
                             neighbors = bzNeighbors z
 
@@ -148,9 +148,18 @@ runHive' game cur_player next_player =
                            -- Turn zero: neither of these two conditions apply
                             then invalidMove k
                             else do
-                                let -- TODO: Possibly grow board
-                                    z'     = bzPoke [Tile (game^.gamePlayer) bug] z
-                                    board' = bzToBoard z'
+                                let w = game^.gameBoard.boardWidth
+                                    h = game^.gameBoard.boardHeight
+
+                                    board' :: Board
+                                    board' =
+                                          bzToBoard
+                                        $ bzPoke [Tile (game^.gamePlayer) bug]
+                                        $ (if row == 0   then bzInsertRowAbove else id)
+                                        $ (if row == h-1 then bzInsertRowBelow else id)
+                                        $ (if col == 0   then bzInsertColLeft  else id)
+                                        $ (if col == w-1 then bzInsertColRight else id)
+                                        $ z
 
                                 case boardWinner board' of
                                     Nothing -> do
@@ -203,10 +212,8 @@ runHive' game cur_player next_player =
 
 -- | Zip to the specified index on a board.
 boardAtIndex :: BoardIndex -> Board -> Maybe BoardZipper
-boardAtIndex (x,y) =
-    bzFromBoard       >=>
-    repeatM x bzRight >=>
-    repeatM y bzDown
+boardAtIndex (row, col) board =
+    repeatM row bzDown (bzFromBoard board) >>= repeatM col bzRight
 
 -- | Get the winner of this board, if any.
 boardWinner :: Board -> Maybe Winner
