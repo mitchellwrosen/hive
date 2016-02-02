@@ -86,10 +86,10 @@ boardHeight = boardTiles . to length
 
 boardNeighbors :: BoardIndex -> HexBoard a -> [(BoardIndex, a)]
 boardNeighbors (row, col) board =
-    catMaybes (map (\i -> fmap (i,) (board ^? ix i)) indices)
+    catMaybes (map (\i -> fmap (i,) (board ^? ix i)) neighbor_idxs)
   where
-    indices :: [BoardIndex]
-    indices =
+    neighbor_idxs :: [BoardIndex]
+    neighbor_idxs =
         case tileParity col (board^.boardParity) of
             Even -> [up, right, downright, down, downleft, left]
             Odd  -> [up, upright, right, down, left, upleft]

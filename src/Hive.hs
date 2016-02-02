@@ -18,7 +18,6 @@ import Control.Monad.Trans.Class
 import Data.List.NonEmpty        (NonEmpty(..))
 import Data.Maybe
 import Data.Set                  (Set)
-import Data.Vector               (Vector)
 
 import qualified Data.List          as List
 import qualified Data.List.Extra    as List
@@ -41,7 +40,8 @@ runHive p1 p2 =
         -- There's no way for the game to have a winner after just 1 turn,
         -- so this partial pattern match is ok.
         (\case
-            GameActive game' -> p2 game')
+            GameActive game' -> p2 game'
+            _ -> error "impossible")
   where
     game :: Game
     game = Game board P1 bugs bugs 0 0
@@ -177,7 +177,7 @@ runHive' game cur_player next_player = do
             -- player may attempt to make a move after the game is said
             -- to be over, but we don't care, we just stop interpreting.
             Just winner -> do
-                runFreeT $ do
+                _ <- runFreeT $ do
                     k (Just (GameOver winner))
                     next_player (GameOver winner)
                 pure ()
@@ -303,6 +303,8 @@ isValidMove Beetle i0 (i1 :| []) board =
 isValidMove Queen i0 (i1 :| []) board =
     pieceCanSlide i0 [i1] board
 
+isValidMove _ _ _ _ = False
+
 -- | A piece can slide from one cell to another if:
 --
 --     - The destination is unoccupied.
@@ -355,15 +357,6 @@ cellOwner xs = xs ^? ix 0 . tilePlayer
 nextPlayer :: Player -> Player
 nextPlayer P1 = P2
 nextPlayer P2 = P1
-
--- | Repeat a monadic action n times.
-repeatM :: Monad m => Int -> (a -> m a) -> a -> m a
-repeatM 0 _ = pure
-repeatM n f = f >=> repeatM (n-1) f
-
-lengthLessThan2 :: [a] -> Bool
-lengthLessThan2 (_:_:_) = False
-lengthLessThan2 _       = True
 
 -- | Get the winner of this board, if any.
 -- TODO
