@@ -1,7 +1,8 @@
-{-# LANGUAGE DeriveGeneric   #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE TupleSections   #-}
-{-# LANGUAGE TypeFamilies    #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell     #-}
+{-# LANGUAGE TupleSections       #-}
+{-# LANGUAGE TypeFamilies        #-}
 
 module Data.HexBoard
     ( HexBoard(..)
@@ -18,10 +19,12 @@ module Data.HexBoard
     ) where
 
 import Control.Lens
+import Control.Monad
 import Data.Maybe
 import Data.Vector  (Vector)
 import GHC.Generics (Generic)
 
+import qualified Data.Graph  as Graph
 import qualified Data.Vector as V
 
 -- Even or odd board parity.
@@ -128,3 +131,41 @@ tileParity col p1
     colParity
         | even col  = Even
         | otherwise = Odd
+
+boardNumSCCs :: forall a. (a -> Bool) -> HexBoard a -> Int
+boardNumSCCs hasElement board = length (Graph.stronglyConnComp adjacency_list)
+  where
+    -- Fold the board into an adjacency list, suitable for the strongly
+    -- connected component API of Data.Graph. Since we don't care what the
+    -- nodes' values are, just use unit. Key nodes by their unique indices.
+    adjacency_list :: [((), BoardIndex, [BoardIndex])]
+    adjacency_list = V.ifoldl' f [] (board^.boardTiles)
+
+    -- First fold: over each row
+    f :: [((), BoardIndex, [BoardIndex])]
+      -> Int
+      -> Vector a
+      -> [((), BoardIndex, [BoardIndex])]
+    f acc row_idx = V.ifoldl (g row_idx) acc
+
+    -- Second fold: over each element of each row
+    g :: Int
+      -> [((), BoardIndex, [BoardIndex])]
+      -> Int
+      -> a
+      -> [((), BoardIndex, [BoardIndex])]
+    g row_idx acc col_idx x
+        | hasElement x =
+            let
+                idx0 :: BoardIndex
+                idx0 = (row_idx, col_idx)
+
+                -- All neighbors of this cell that have elements.
+                neighbors :: [BoardIndex]
+                neighbors = do
+                    (idx1, y) <- boardNeighbors idx0 board
+                    guard (hasElement y)
+                    pure idx1
+            in
+                ((), idx0, neighbors) : acc
+        | otherwise = acc
