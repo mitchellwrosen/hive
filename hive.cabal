@@ -34,8 +34,10 @@ executable hive-local
   main-is:             Main.hs
   build-depends:       base >= 4.7 && < 5
                      , ansi-terminal
+                     , haskeline
                      , hive
                      , lens
+                     , megaparsec
                      , semigroups
                      , transformers
                      , vector
