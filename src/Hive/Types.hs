@@ -27,7 +27,7 @@ data Bug
     | Spider
     | Beetle
     | Queen
-    deriving (Eq, Generic, Ord, Show)
+    deriving (Eq, Generic, Ord, Read, Show)
 
 -- | A tile is a Bug that belongs to a Player.
 data Tile = Tile

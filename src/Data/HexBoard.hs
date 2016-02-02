@@ -13,6 +13,7 @@ module Data.HexBoard
     , boardHeight
     , boardNeighbors
     , boardAdjacency
+    , boardNumSCCs
     , Parity(..)
     , flipParity
     , Adjacency(..)

@@ -1,12 +1,12 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Hive
-    ( runHive
-    , module Control.Monad.Trans.Class
-    , module Hive.Monad
-    , module Hive.Types
-    ) where
+module Hive where
+    -- ( runHive
+    -- , module Control.Monad.Trans.Class
+    -- , module Hive.Monad
+    -- , module Hive.Types
+    -- ) where
 
 import Hive.Monad
 import Hive.Types
@@ -95,16 +95,16 @@ runHive' game cur_player next_player = do
                   has_opponent_neighbor :: Bool
                   has_opponent_neighbor = any (\c -> cellOwner c == Just opponent) neighbors
 
-                  has_neighbors :: Bool
-                  has_neighbors = not (all null neighbors)
+                  has_occupied_neighbor :: Bool
+                  has_occupied_neighbor = not (all null neighbors)
 
             -- If this is the FIRST tile, ok.
-            -- If this is the SECOND TILE, it must have at least one neighbor.
-            -- If this is the THIRD OR LATER tile, it must have at least one
+            -- If this is the SECOND TILE, it must have at least one occupied neighbor.
+            -- If this is the THIRD OR LATER tile, it must have at least one occupied
             -- neighbor, none of which can belong to the opponent.
-            , num_bugs_placed == 0                  ||
-              num_bugs_placed == 1 && has_neighbors ||
-              has_neighbors && not has_opponent_neighbor -> do
+            , num_bugs_placed == 0 ||
+              num_bugs_placed == 1 && has_occupied_neighbor ||
+              has_occupied_neighbor && not has_opponent_neighbor -> do
 
                 -- Poke the new tile into place, then possibly grow the board in
                 -- all 4 directions to accomodate new viable cells to play at.
@@ -253,7 +253,8 @@ isValidMove :: Bug -> BoardIndex -> NonEmpty BoardIndex -> Board -> Bool
 -- So, this implements more like 75% of the "One Hive Rule".
 --
 -- ('tail' is safe here per the precondition.)
-isValidMove _ src _ board | boardSCCs (over (ix src) tail board) /= 1 = False
+isValidMove _ src _ board
+    | boardNumSCCs (not . null) (over (ix src) tail board) /= 1 = False
 
 -- An ant slides around any number of cells.
 isValidMove Ant i0 (i1 :| is) board =
@@ -291,12 +292,12 @@ isValidMove Spider i0 (i1 :| [i2,i3]) board =
 -- the hive and becoming its own island.
 isValidMove Beetle i0 (i1 :| []) board =
     let
-        neighbors :: [BoardIndex]
-        neighbors = map fst (boardNeighbors i1 board)
+        occupied_neighbors :: [BoardIndex]
+        occupied_neighbors = map fst (boardOccupiedNeighbors i1 board)
     in
         cellsAreAdjacent board i0 i1 &&
-        neighbors /= [] &&
-        neighbors /= [i0]
+        occupied_neighbors /= [] &&
+        occupied_neighbors /= [i0]
 
 -- A queen slides one cell.
 isValidMove Queen i0 (i1 :| []) board =
@@ -305,18 +306,18 @@ isValidMove Queen i0 (i1 :| []) board =
 -- | A piece can slide from one cell to another if:
 --
 --     - The destination is unoccupied.
---     - The source and destination share precicely one neighbor.
+--     - The source and destination share precicely one occupied neighbor.
 --
--- Zero neighbors means they are too far apart. Two neighbors means
--- there's too small a gap to squeeze through.
+-- Sharing zero occupied neighbors means they are too far apart. Sharing two
+-- occupied neighbors means there's too small a gap to squeeze through.
 --
 -- Precondition: list of indices contains at least one element.
 pieceCanSlide :: BoardIndex -> [BoardIndex] -> Board -> Bool
 pieceCanSlide i0 is board =
-    -- No cells after the first are occupied (tail is safe per the precondition)
+    -- No cells after the first are occupied.
     and (map (\i -> cellIsUnoccupied i board) is) &&
-    -- Each two cells along the path share exactly one neighbor.
-    go (map (\i -> S.fromList (boardNeighbors i board)) (i0:is))
+    -- Each two cells along the path share exactly one occupied neighbor.
+    go (map (\i -> S.fromList (boardOccupiedNeighbors i board)) (i0:is))
   where
     go :: [Set (BoardIndex, Cell)] -> Bool
     go [] = True -- should never be reached
@@ -336,8 +337,14 @@ cellIsOccupied i board = isJust (board ^? ix i . _head)
 cellIsUnoccupied :: BoardIndex -> Board -> Bool
 cellIsUnoccupied i board = board ^? ix i == Just []
 
-boardSCCs :: HexBoard a -> Int
-boardSCCs = error "TODO"
+-- | Get a list of neighbor cells that have at least one tile in them.
+--
+-- Postcondition: each Cell is non-empty.
+boardOccupiedNeighbors :: BoardIndex -> Board -> [(BoardIndex, Cell)]
+boardOccupiedNeighbors i board = do
+    n <- boardNeighbors i board
+    guard (not (null (snd n)))
+    pure n
 
 --------------------------------------------------------------------------------
 -- Misc. utils
