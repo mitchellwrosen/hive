@@ -1,12 +1,12 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Hive where
-    -- ( runHive
-    -- , module Control.Monad.Trans.Class
-    -- , module Hive.Monad
-    -- , module Hive.Types
-    -- ) where
+module Hive
+    ( runHive
+    , module Control.Monad.Trans.Class
+    , module Hive.Monad
+    , module Hive.Types
+    ) where
 
 import Hive.Monad
 import Hive.Types
@@ -366,6 +366,7 @@ lengthLessThan2 (_:_:_) = False
 lengthLessThan2 _       = True
 
 -- | Get the winner of this board, if any.
+-- TODO
 boardWinner :: Board -> Maybe Winner
 boardWinner _ = Nothing
 

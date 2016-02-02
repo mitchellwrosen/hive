@@ -17,6 +17,7 @@ library
   exposed-modules:     Hive
                      , Hive.Monad
   other-modules:       Data.HexBoard
+                     , Hive.Types
   build-depends:       base >= 4.7 && < 5
                      , containers
                      , extra
@@ -25,6 +26,20 @@ library
                      , semigroups
                      , transformers
                      , vector
+  ghc-options:         -Wall
+  default-language:    Haskell2010
+
+executable hive-local
+  hs-source-dirs:      app/local
+  main-is:             Main.hs
+  build-depends:       base >= 4.7 && < 5
+                     , ansi-terminal
+                     , hive
+                     , lens
+                     , semigroups
+                     , transformers
+                     , vector
+  ghc-options:         -Wall
   default-language:    Haskell2010
 
 test-suite hive-test
