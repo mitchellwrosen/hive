@@ -77,7 +77,7 @@ runHive' game cur_player next_player = do
         -- interpret. This shouldn't happen with well-written players.
         Pure () -> pure ()
 
-        Free (MakePlacement bug (row, col) k)
+        Free (MakePlacement bug board_idx k)
             -- The current player must have the bug in supply.
             | bug `elem` game^.gameCurPlayerBugs
 
@@ -87,10 +87,10 @@ runHive' game cur_player next_player = do
               game^.gameCurPlayerPlaced /= 3
 
             -- The index must be in bounds, and must not have a tile on it.
-            , cellIsUnoccupied (row, col) board
+            , cellIsUnoccupied board_idx board
 
             , let neighbors :: [Cell]
-                  neighbors = map snd (boardNeighbors (row, col) board)
+                  neighbors = map snd (boardNeighbors board_idx board)
 
                   has_opponent_neighbor :: Bool
                   has_opponent_neighbor = any (\c -> cellOwner c == Just opponent) neighbors
@@ -106,48 +106,20 @@ runHive' game cur_player next_player = do
               num_bugs_placed == 1 && has_neighbors ||
               has_neighbors && not has_opponent_neighbor -> do
 
-                let w = board^.boardWidth
-                    h = board^.boardHeight
+                -- Poke the new tile into place, then possibly grow the board in
+                -- all 4 directions to accomodate new viable cells to play at.
+                let f :: Board -> Board
+                    f = possiblyGrowBoard board_idx
+                      . over (ix board_idx) (\_ -> [Tile (game^.gamePlayer) bug])
 
-                    -- Poke the new tile into place, then possibly grow the
-                    -- board by 1 row/col in all 4 directions. This ensures that
-                    -- valid moves can be expressed naturally in terms of row
-                    -- and column indices.
-                    board' :: Board
-                    board' =
-                          (if row == 0   then boardPrependRow else id)
-                        $ (if row == h-1 then boardAppendRow  else id)
-                        $ (if col == 0   then boardPrependCol else id)
-                        $ (if col == w-1 then boardAppendCol  else id)
-                        $ over (ix (row, col))
-                               (\_ -> [Tile (game^.gamePlayer) bug])
-                               board
+                    game' :: Game
+                    game' = game
+                        & gameBoard           %~ f
+                        & gamePlayer          %~ nextPlayer
+                        & gameCurPlayerBugs   %~ List.delete bug
+                        & gameCurPlayerPlaced %~ (+1)
 
-                case boardWinner board' of
-                    -- No winner yet - loop with the updated game state and
-                    -- players.
-                    Nothing -> do
-                        let game' = game
-                              & gameBoard           .~ board'
-                              & gamePlayer          %~ nextPlayer
-                              & gameCurPlayerBugs   %~ List.delete bug
-                              & gameCurPlayerPlaced %~ (+1)
-
-                        runHive'
-                            game'
-                            (next_player (GameActive game'))
-                            (\result -> k (Just result))
-
-                    -- If the game's over, run side-effects of player logic one
-                    -- last time (to inform them of the game ending), but don't
-                    -- bother continuing to interpret the AST. An oddly written
-                    -- player may attempt to make a move after the game is said
-                    -- to be over, but we don't care, we just stop interpreting.
-                    Just winner -> do
-                        runFreeT $ do
-                            k (Just (GameOver winner))
-                            next_player (GameOver winner)
-                        pure ()
+                next game' k
 
             | otherwise -> invalidMove k
 
@@ -159,17 +131,73 @@ runHive' game cur_player next_player = do
             , Just cell <- board ^? ix src
 
             -- There must be a tile there to move.
-            , (Tile p bug : _) <- cell
+            , t@(Tile p bug) : ts <- cell
 
             -- The tile must belong to the current player.
             , p == game^.gamePlayer
 
             -- The move must be valid per the movement rules of the game.
-            , isValidMove bug src path board ->
-                error "TODO"
+            , isValidMove bug src path board -> do
+                let dst :: BoardIndex
+                    dst = NE.last path
+
+                    -- Pop the tile off the source, push it onto the
+                    -- destination, and possibly grow the board in all 4
+                    -- directions.
+                    f :: Board -> Board
+                    f = possiblyGrowBoard dst
+                      . over (ix dst) (t :)
+                      . over (ix src) (\_ -> ts)
+
+                    game' :: Game
+                    game' = game
+                        & gameBoard  %~ f
+                        & gamePlayer %~ nextPlayer
+
+                next game' k
 
             | otherwise -> invalidMove k
   where
+    -- Given the updated game state, check to see if the game's over; if it
+    -- isn't, recurse.
+    next :: Game -> (Maybe GameState -> Hive m ()) -> m ()
+    next game' k =
+        case boardWinner (game'^.gameBoard) of
+            -- No winner yet - loop with the updated game state and
+            -- players.
+            Nothing ->
+                runHive'
+                    game'
+                    (next_player (GameActive game'))
+                    (\result -> k (Just result))
+
+            -- If the game's over, run side-effects of player logic one
+            -- last time (to inform them of the game ending), but don't
+            -- bother continuing to interpret the AST. An oddly written
+            -- player may attempt to make a move after the game is said
+            -- to be over, but we don't care, we just stop interpreting.
+            Just winner -> do
+                runFreeT $ do
+                    k (Just (GameOver winner))
+                    next_player (GameOver winner)
+                pure ()
+
+    -- Given an index that presumably just had a piece placed on it (or moved
+    -- to), possibly grow the board if that index is on an edge of the board.
+    possiblyGrowBoard :: BoardIndex -> Board -> Board
+    possiblyGrowBoard (row, col) board =
+        let
+            w = board^.boardWidth
+            h = board^.boardHeight
+
+            f0, f1, f2, f3 :: Board -> Board
+            f0 = if row == 0   then boardPrependRow else id
+            f1 = if row == h-1 then boardAppendRow  else id
+            f2 = if col == 0   then boardPrependCol else id
+            f3 = if col == w-1 then boardAppendCol  else id
+        in
+            f0 (f1 (f2 (f3 board)))
+
     -- Recurse with the same game state, providing Nothing to the current
     -- player's continuation to indicate an invalid move.
     invalidMove :: (Maybe GameState -> Hive m ()) -> m ()
