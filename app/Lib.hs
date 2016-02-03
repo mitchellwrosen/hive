@@ -1,6 +1,9 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Main where
+module Lib
+    ( Action(..)
+    , consolePlayer
+    ) where
 
 import Hive
 
@@ -16,50 +19,47 @@ import Text.Printf
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector        as V
 
-data Turn
+data Action
     = Place Bug BoardIndex
     | Move BoardIndex (NonEmpty BoardIndex)
 
-main :: IO ()
-main = do
-    putStrLn ("To place a piece: " ++ colored White "place ant 0 1")
-    putStrLn ("To move a piece:  " ++ colored White "move 2 3, 2 4, 3 4")
-
-    runInputT defaultSettings
-        (runHive (consolePlayer "Player 1")
-                 (consolePlayer "Player 2"))
-
 consolePlayer :: String -> Game -> Hive (InputT IO) ()
-consolePlayer name game = do
+consolePlayer name game0 = do
     liftIO $ do
-        putStrLn ""
-        printBoard (game^.gameBoard)
-
-    let prompt = colored (player2color (game^.gamePlayer)) (name ++ "> ")
-    lift (getInputLine prompt) >>= \case
-        Nothing   -> pure ()
-        Just line ->
-            case runParser turnParser "" line of
-                Left _ -> do
-                    liftIO (putStrLn (colored Red "Parse error."))
-                    consolePlayer name game
-                Right turn -> do
-                    result <-
-                        case turn of
-                            Place bug idx -> makePlacement bug idx
-                            Move x xs     -> makeMove x xs
-
-                    case result of
-                        Nothing -> do
-                            liftIO (putStrLn (colored Red "Invalid move!"))
-                            consolePlayer name game
-                        Just (GameOver winner) -> liftIO (print winner)
-                        Just (GameActive game') -> consolePlayer name game'
-
-turnParser :: Parsec String Turn
-turnParser = placeParser <|> moveParser
+        putStrLn ("To place a piece: " ++ colored White "place ant 0 1")
+        putStrLn ("To move a piece:  " ++ colored White "move 2 3, 2 4, 3 4")
+    loop game0
   where
-    placeParser :: Parsec String Turn
+    loop game = do
+        liftIO $ do
+            putStrLn ""
+            printBoard (game^.gameBoard)
+
+        let prompt = colored (player2color (game^.gamePlayer)) (name ++ "> ")
+        lift (getInputLine prompt) >>= \case
+            Nothing   -> pure ()
+            Just line ->
+                case runParser actionParser "" line of
+                    Left _ -> do
+                        liftIO (putStrLn (colored Red "Parse error."))
+                        loop game
+                    Right action -> do
+                        result <-
+                            case action of
+                                Place bug idx -> makePlacement bug idx
+                                Move x xs     -> makeMove x xs
+
+                        case result of
+                            Nothing -> do
+                                liftIO (putStrLn (colored Red "Invalid move!"))
+                                loop game
+                            Just (GameOver winner)  -> liftIO (print winner)
+                            Just (GameActive game') -> loop game'
+
+actionParser :: Parsec String Action
+actionParser = placeParser <|> moveParser
+  where
+    placeParser :: Parsec String Action
     placeParser = do
         _ <- string' "place"
         space
@@ -68,7 +68,7 @@ turnParser = placeParser <|> moveParser
         idx <- idxParser
         pure (Place bug idx)
 
-    moveParser :: Parsec String Turn
+    moveParser :: Parsec String Action
     moveParser = do
         _ <- string' "move"
         space

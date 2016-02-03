@@ -30,8 +30,9 @@ library
   default-language:    Haskell2010
 
 executable hive-local
-  hs-source-dirs:      app/local
-  main-is:             Main.hs
+  hs-source-dirs:      app
+  main-is:             HiveLocal.hs
+  other-modules:       Lib
   build-depends:       base >= 4.7 && < 5
                      , ansi-terminal
                      , haskeline
