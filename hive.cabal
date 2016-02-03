@@ -14,9 +14,9 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Hive
+  exposed-modules:     Data.HexBoard
+                     , Hive
                      , Hive.Monad
-  other-modules:       Data.HexBoard
                      , Hive.Types
   build-depends:       base >= 4.7 && < 5
                      , containers
@@ -32,7 +32,8 @@ library
 executable hive-local
   hs-source-dirs:      app
   main-is:             HiveLocal.hs
-  other-modules:       Lib
+  other-modules:       Hive.Impl.Common
+                     , Hive.Impl.Console
   build-depends:       base >= 4.7 && < 5
                      , ansi-terminal
                      , haskeline

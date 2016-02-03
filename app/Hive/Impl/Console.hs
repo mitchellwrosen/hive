@@ -1,16 +1,15 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Lib
-    ( Action(..)
-    , consolePlayer
+module Hive.Impl.Console
+    ( consolePlayer
     ) where
 
 import Hive
+import Hive.Impl.Common
 
 import Control.Lens
 import Control.Monad
 import Control.Monad.IO.Class
-import Data.List.NonEmpty     (NonEmpty)
 import System.Console.ANSI
 import System.Console.Haskeline
 import Text.Megaparsec
@@ -19,9 +18,6 @@ import Text.Printf
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector        as V
 
-data Action
-    = Place Bug BoardIndex
-    | Move BoardIndex (NonEmpty BoardIndex)
 
 consolePlayer :: String -> Game -> Hive (InputT IO) ()
 consolePlayer name game0 = do
