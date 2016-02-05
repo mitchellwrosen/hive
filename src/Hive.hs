@@ -87,7 +87,7 @@ runHive' game cur_player next_player = do
               game^.gameCurPlayerPlaced /= 3
 
             -- The index must be in bounds, and must not have a tile on it.
-            , cellIsUnoccupied board_idx board
+            , cellIsUnoccupied board board_idx
 
             , let neighbors :: [Cell]
                   neighbors = map snd (boardNeighbors board_idx board)
@@ -119,7 +119,7 @@ runHive' game cur_player next_player = do
                         & gameCurPlayerBugs   %~ List.delete bug
                         & gameCurPlayerPlaced %~ (+1)
 
-                next game' k
+                next board_idx game' k
 
             | otherwise -> invalidMove k
 
@@ -154,15 +154,15 @@ runHive' game cur_player next_player = do
                         & gameBoard  %~ f
                         & gamePlayer %~ nextPlayer
 
-                next game' k
+                next dst game' k
 
             | otherwise -> invalidMove k
   where
     -- Given the updated game state, check to see if the game's over; if it
     -- isn't, recurse.
-    next :: Game -> (Maybe GameState -> Hive m ()) -> m ()
-    next game' k =
-        case boardWinner (game'^.gameBoard) of
+    next :: BoardIndex -> Game -> (Maybe GameState -> Hive m ()) -> m ()
+    next modified_idx game' k =
+        case boardWinner modified_idx (game'^.gameBoard) of
             -- No winner yet - loop with the updated game state and
             -- players.
             Nothing ->
@@ -263,9 +263,9 @@ isValidMove Ant i0 (i1 :| is) board =
 -- A grasshopper hops over one or more occupied cells in a straight line.
 isValidMove Grasshopper i0 (i1 :| (i2:is)) board =
     -- All cells along the path except for the last are occupied.
-    and (map (\i -> cellIsOccupied i board) path) &&
+    all (cellIsOccupied board) path &&
     -- The last cell is unoccupied.
-    not (cellIsOccupied dst board) &&
+    not (cellIsOccupied board dst) &&
     -- Path forms a straight line, i.e. the adjacency relationship between
     -- consecutive cells is the same throughout. Note that this depends on
     -- the parity of the board, and is not as simple as taking the integer
@@ -291,13 +291,12 @@ isValidMove Spider i0 (i1 :| [i2,i3]) board =
 -- its original position. This prevents a beetle from popping off the edge of
 -- the hive and becoming its own island.
 isValidMove Beetle i0 (i1 :| []) board =
-    let
-        occupied_neighbors :: [BoardIndex]
-        occupied_neighbors = map fst (boardOccupiedNeighbors i1 board)
-    in
-        cellsAreAdjacent board i0 i1 &&
-        occupied_neighbors /= [] &&
-        occupied_neighbors /= [i0]
+    cellsAreAdjacent board i0 i1 &&
+    occupied_neighbors /= [] &&
+    occupied_neighbors /= [i0]
+  where
+    occupied_neighbors :: [BoardIndex]
+    occupied_neighbors = map fst (boardOccupiedNeighbors board i1)
 
 -- A queen slides one cell.
 isValidMove Queen i0 (i1 :| []) board =
@@ -317,9 +316,9 @@ isValidMove _ _ _ _ = False
 pieceCanSlide :: BoardIndex -> [BoardIndex] -> Board -> Bool
 pieceCanSlide i0 is board =
     -- No cells after the first are occupied.
-    and (map (\i -> cellIsUnoccupied i board) is) &&
+    all (cellIsUnoccupied board) is &&
     -- Each two cells along the path share exactly one occupied neighbor.
-    go (map (\i -> S.fromList (boardOccupiedNeighbors i board)) (i0:is))
+    go (map (S.fromList . boardOccupiedNeighbors board) (i0:is))
   where
     go :: [Set (BoardIndex, Cell)] -> Bool
     go [] = True -- should never be reached
@@ -332,18 +331,18 @@ cellsAreAdjacent board src dst =
     dst `elem` map fst (boardNeighbors src board)
 
 -- | Is this cell occupied by at least one tile?
-cellIsOccupied :: BoardIndex -> Board -> Bool
-cellIsOccupied i board = isJust (board ^? ix i . _head)
+cellIsOccupied :: Board -> BoardIndex -> Bool
+cellIsOccupied board i = isJust (board ^? ix i . _head)
 
 -- | Is this cell unoccuped (but still in bounds)?
-cellIsUnoccupied :: BoardIndex -> Board -> Bool
-cellIsUnoccupied i board = board ^? ix i == Just []
+cellIsUnoccupied :: Board -> BoardIndex -> Bool
+cellIsUnoccupied board i = board ^? ix i == Just []
 
 -- | Get a list of neighbor cells that have at least one tile in them.
 --
 -- Postcondition: each Cell is non-empty.
-boardOccupiedNeighbors :: BoardIndex -> Board -> [(BoardIndex, Cell)]
-boardOccupiedNeighbors i board = do
+boardOccupiedNeighbors :: Board -> BoardIndex -> [(BoardIndex, Cell)]
+boardOccupiedNeighbors board i = do
     n <- boardNeighbors i board
     guard (not (null (snd n)))
     pure n
@@ -358,10 +357,27 @@ nextPlayer :: Player -> Player
 nextPlayer P1 = P2
 nextPlayer P2 = P1
 
--- | Get the winner of this board, if any.
--- TODO
-boardWinner :: Board -> Maybe Winner
-boardWinner _ = Nothing
+-- | Get the winner of this board, if any. Takes an index representing the last
+-- index that a piece was either moved to or placed at as an optimization, since
+-- a queen can only possibly be smothered at one of this cell's neighbors.
+boardWinner :: BoardIndex -> Board -> Maybe Winner
+boardWinner i0 board =
+    go (catMaybes (map queenSmothered (boardNeighbors i0 board)))
+  where
+    queenSmothered :: (BoardIndex, Cell) -> Maybe Player
+    queenSmothered (i1, cell)
+        | Just (Tile player Queen) <- cell^?_last
+        , length (boardOccupiedNeighbors board i1) == 6 =
+            Just player
+        | otherwise = Nothing
+
+    go :: [Player] -> Maybe Winner
+    go queens =
+        case (elem P1 queens, elem P2 queens) of
+            (True, True) -> Just BothWin
+            (True,    _) -> Just P1Wins
+            (   _, True) -> Just P2Wins
+            _            -> Nothing
 
 boardPrependRow :: Board -> Board
 boardPrependRow board =
