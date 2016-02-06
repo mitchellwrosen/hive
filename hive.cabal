@@ -36,6 +36,7 @@ executable hive-local
                      , Hive.Impl.Console
   build-depends:       base >= 4.7 && < 5
                      , ansi-terminal
+                     , cereal
                      , haskeline
                      , hive
                      , lens
@@ -43,6 +44,44 @@ executable hive-local
                      , semigroups
                      , transformers
                      , vector
+  ghc-options:         -Wall
+  default-language:    Haskell2010
+
+executable hive-ws-server
+  hs-source-dirs:      app
+  main-is:             HiveWebSocketServer.hs
+  other-modules:       Hive.Impl.Common
+                     , Hive.Impl.WebSocket
+  build-depends:       base >= 4.7 && < 5
+                     , async
+                     , bytestring
+                     , cereal
+                     , hive
+                     , network
+                     , semigroups
+                     , transformers
+                     , vector
+                     , websockets
+  ghc-options:         -Wall
+  default-language:    Haskell2010
+
+executable hive-ws-client
+  hs-source-dirs:      app
+  main-is:             HiveWebSocketClient.hs
+  other-modules:       Hive.Impl.Common
+                     , Hive.Impl.WebSocket
+  build-depends:       base >= 4.7 && < 5
+                     , ansi-terminal
+                     , cereal
+                     , free
+                     , haskeline
+                     , hive
+                     , lens
+                     , megaparsec
+                     , semigroups
+                     , transformers
+                     , vector
+                     , websockets
   ghc-options:         -Wall
   default-language:    Haskell2010
 
