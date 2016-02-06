@@ -5,8 +5,8 @@ module Main where
 
 import Hive
 import Hive.Impl.Common
-import Hive.Impl.Console
-import Hive.Impl.WebSocket ()
+import Hive.Impl.Console.Player
+import Hive.Impl.Console.WebSocket ()
 
 import Control.Monad
 import Control.Monad.IO.Class

@@ -1,6 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 
-module Hive.Impl.Console
+module Hive.Impl.Console.Player
     ( consolePlayer
     ) where
 
@@ -17,7 +17,6 @@ import Text.Printf
 
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector        as V
-
 
 consolePlayer :: String -> Game -> Hive (InputT IO) ()
 consolePlayer name game0 = do

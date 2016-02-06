@@ -5,7 +5,7 @@ module Main where
 
 import Hive
 import Hive.Impl.Common
-import Hive.Impl.WebSocket ()
+import Hive.Impl.Console.WebSocket ()
 
 import Control.Concurrent
 import Control.Concurrent.Async

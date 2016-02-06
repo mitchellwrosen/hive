@@ -1,6 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Hive.Impl.WebSocket where
+module Hive.Impl.Console.WebSocket where
 
 import Hive
 import Hive.Impl.Common

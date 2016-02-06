@@ -31,9 +31,9 @@ library
 
 executable hive-local
   hs-source-dirs:      app
-  main-is:             HiveLocal.hs
+  main-is:             Hive/Impl/Console/LocalMain.hs
   other-modules:       Hive.Impl.Common
-                     , Hive.Impl.Console
+                     , Hive.Impl.Console.Player
   build-depends:       base >= 4.7 && < 5
                      , ansi-terminal
                      , cereal
@@ -49,9 +49,9 @@ executable hive-local
 
 executable hive-ws-server
   hs-source-dirs:      app
-  main-is:             HiveWebSocketServer.hs
+  main-is:             Hive/Impl/Console/WebSocketServerMain.hs
   other-modules:       Hive.Impl.Common
-                     , Hive.Impl.WebSocket
+                     , Hive.Impl.Console.WebSocket
   build-depends:       base >= 4.7 && < 5
                      , async
                      , bytestring
@@ -67,9 +67,10 @@ executable hive-ws-server
 
 executable hive-ws-client
   hs-source-dirs:      app
-  main-is:             HiveWebSocketClient.hs
+  main-is:             Hive/Impl/Console/WebSocketClientMain.hs
   other-modules:       Hive.Impl.Common
-                     , Hive.Impl.WebSocket
+                     , Hive.Impl.Console.Player
+                     , Hive.Impl.Console.WebSocket
   build-depends:       base >= 4.7 && < 5
                      , ansi-terminal
                      , cereal

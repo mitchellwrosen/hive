@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveGeneric  #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module Hive.Impl.Common
     ( Action(..)

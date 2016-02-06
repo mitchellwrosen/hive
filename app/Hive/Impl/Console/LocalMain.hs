@@ -1,7 +1,7 @@
 module Main where
 
 import Hive
-import Hive.Impl.Console
+import Hive.Impl.Console.Player (consolePlayer)
 
 import System.Console.Haskeline
 
