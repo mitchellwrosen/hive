@@ -1,0 +1,88 @@
+name: hive
+version: 0.1.0.0
+synopsis: Hive
+license: BSD3
+author: Mitchell Rosen
+maintainer: mitchellwrosen@gmail.com
+github: mitchellwrosen/hive
+copyright: 2015 Mitchell Rosen
+category: Web
+
+ghc-options: -Wall
+
+dependencies:
+  - base
+
+library:
+  source-dirs: src
+  dependencies:
+    - containers
+    - extra
+    - lens
+    - free
+    - semigroups
+    - transformers
+    - vector
+
+executables:
+  hive-local:
+    source-dirs: app
+    main: Hive/Impl/Console/LocalMain.hs
+    other-modules:
+      - Hive.Impl.Common
+      - Hive.Impl.Console.Player
+    dependencies:
+      - ansi-terminal
+      - cereal
+      - haskeline
+      - hive
+      - lens
+      - megaparsec
+      - semigroups
+      - transformers
+      - vector
+
+  hive-ws-server:
+    source-dirs: app
+    main: Hive/Impl/Console/WebSocketServerMain.hs
+    other-modules:
+      - Hive.Impl.Common
+      - Hive.Impl.Console.WebSocket
+    dependencies:
+      - async
+      - bytestring
+      - cereal
+      - hive
+      - network
+      - semigroups
+      - transformers
+      - vector
+      - websockets
+
+  hive-ws-client:
+    source-dirs: app
+    main: Hive/Impl/Console/WebSocketClientMain.hs
+    other-modules:
+      - Hive.Impl.Common
+      - Hive.Impl.Console.Player
+      - Hive.Impl.Console.WebSocket
+    dependencies:
+      - ansi-terminal
+      - cereal
+      - free
+      - haskeline
+      - hive
+      - lens
+      - megaparsec
+      - semigroups
+      - transformers
+      - vector
+      - websockets
+
+tests:
+  hive-test:
+    source-dirs: test
+    main: Spec.hs
+    dependencies:
+      - hive
+    ghc-options: -threaded -rtsopts -with-rtsopts=-N
