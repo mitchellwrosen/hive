@@ -21,6 +21,7 @@ module Data.HexBoard
 
 import Control.Lens
 import Control.Monad
+import Data.Aeson
 import Data.Maybe
 import Data.Vector  (Vector)
 import GHC.Generics (Generic)
@@ -32,7 +33,7 @@ import qualified Data.Vector as V
 data Parity
     = Even
     | Odd
-    deriving (Eq, Generic, Show)
+    deriving (Eq, Generic, Show, FromJSON, ToJSON)
 
 flipParity :: Parity -> Parity
 flipParity Even = Odd
@@ -69,7 +70,7 @@ type BoardIndex = (Int, Int)
 data HexBoard a = HexBoard
     { _boardTiles  :: Vector (Vector a)
     , _boardParity :: Parity
-    } deriving (Eq, Generic, Show)
+    } deriving (Eq, Show, Generic, FromJSON, ToJSON)
 makeLenses ''HexBoard
 
 type instance Index   (HexBoard a) = (Int, Int)

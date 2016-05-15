@@ -10,7 +10,18 @@ category: Web
 
 ghc-options: -Wall
 
+default-extensions:
+  - DeriveAnyClass
+  - DeriveFunctor
+  - DeriveGeneric
+  - FlexibleContexts
+  - LambdaCase
+  - MultiWayIf
+  - OverloadedStrings
+  - RecordWildCards
+
 dependencies:
+  - aeson
   - base
 
 library:
@@ -20,7 +31,9 @@ library:
     - extra
     - lens
     - free
+    - mtl
     - semigroups
+    - text
     - transformers
     - vector
 
@@ -33,12 +46,12 @@ executables:
       - Hive.Impl.Console.Player
     dependencies:
       - ansi-terminal
-      - cereal
       - haskeline
       - hive
       - lens
       - megaparsec
       - semigroups
+      - text
       - transformers
       - vector
 
@@ -47,11 +60,9 @@ executables:
     main: Hive/Impl/Console/WebSocketServerMain.hs
     other-modules:
       - Hive.Impl.Common
-      - Hive.Impl.Console.WebSocket
     dependencies:
       - async
       - bytestring
-      - cereal
       - hive
       - network
       - semigroups
@@ -65,16 +76,15 @@ executables:
     other-modules:
       - Hive.Impl.Common
       - Hive.Impl.Console.Player
-      - Hive.Impl.Console.WebSocket
     dependencies:
       - ansi-terminal
-      - cereal
       - free
       - haskeline
       - hive
       - lens
       - megaparsec
       - semigroups
+      - text
       - transformers
       - vector
       - websockets
