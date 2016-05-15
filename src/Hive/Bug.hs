@@ -1,7 +1,8 @@
 module Hive.Bug where
 
+import Mitchell.Prelude
+
 import Data.Aeson
-import GHC.Generics (Generic)
 
 -- | Bug enum.
 data Bug
@@ -10,4 +11,4 @@ data Bug
   | Spider
   | Beetle
   | Queen
-  deriving (Eq, Generic, Ord, Read, Show, FromJSON, ToJSON)
+  deriving (Eq, Generic, Ord, Show, FromJSON, ToJSON)

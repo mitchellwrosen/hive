@@ -1,7 +1,8 @@
 module Hive.Player where
 
+import Mitchell.Prelude
+
 import Data.Aeson
-import GHC.Generics (Generic)
 
 -- | Nothing means the players tied.
 type Winner = Maybe Player

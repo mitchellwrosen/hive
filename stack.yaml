@@ -1,1 +1,7 @@
-resolver: lts-5.1
+resolver: lts-5.16
+packages:
+  - .
+  - location:
+      git: git@github.com:mitchellwrosen/mitchell-prelude
+      commit: 2a29f40
+    extra-dep: true

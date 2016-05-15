@@ -12,6 +12,8 @@ module Hive
   , module Hive.Tile
   ) where
 
+import Mitchell.Prelude
+
 import Data.HexBoard
 import Hive.Board
 import Hive.Bug
@@ -21,11 +23,9 @@ import Hive.Player
 import Hive.Tile
 
 import Control.Lens
-import Control.Monad.Except
 import Control.Monad.Trans.Free
 import Control.Monad.Trans.Class
 import Data.List.NonEmpty        (NonEmpty(..))
-import Data.Text                 (Text)
 
 import qualified Data.List          as List
 import qualified Data.List.Extra    as List
@@ -279,9 +279,9 @@ validateMove
 --
 -- So, this implements more like 75% of the "One Hive Rule".
 --
--- ('tail' is safe here per the precondition.)
+-- (unsafeTail is safe here per the precondition.)
 validateMove _ src _ board
-  | boardNumSCCs (not . null) (over (ix src) tail board) /= 1 =
+  | boardNumSCCs (not . null) (over (ix src) unsafeTail board) /= 1 =
       throwError "Move violates the One Hive Rule"
 
 -- An ant slides around any number of cells.

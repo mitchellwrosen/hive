@@ -1,14 +1,13 @@
 module Hive.Board where
 
+import Mitchell.Prelude
+
 import Data.HexBoard
 import Hive.Bug
 import Hive.Player
 import Hive.Tile
 
-import Control.Monad
 import Control.Lens
-import Data.Maybe
-import Data.Set     (Set)
 import Data.Vector  (Vector)
 
 import qualified Data.Set    as Set
@@ -25,10 +24,10 @@ growBoard (row, col) board =
     h = view boardHeight board
 
     f0, f1, f2, f3 :: Board -> Board
-    f0 = if row == 0   then prependRow else id
-    f1 = if row == h-1 then appendRow  else id
-    f2 = if col == 0   then prependCol else id
-    f3 = if col == w-1 then appendCol  else id
+    f0 = if row == 0   then prependRow else identity
+    f1 = if row == h-1 then appendRow  else identity
+    f2 = if col == 0   then prependCol else identity
+    f3 = if col == w-1 then appendCol  else identity
   in
     f0 (f1 (f2 (f3 board)))
 

@@ -2,12 +2,13 @@
 
 module Hive.Tile where
 
+import Mitchell.Prelude
+
 import Hive.Bug
 import Hive.Player
 
 import Data.Aeson
 import Control.Lens
-import GHC.Generics (Generic)
 
 -- | A tile is a Bug that belongs to a Player.
 data Tile = Tile

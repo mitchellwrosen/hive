@@ -5,7 +5,7 @@ license: BSD3
 author: Mitchell Rosen
 maintainer: mitchellwrosen@gmail.com
 github: mitchellwrosen/hive
-copyright: 2015 Mitchell Rosen
+copyright: 2015-2016 Mitchell Rosen
 category: Web
 
 ghc-options: -Wall
@@ -17,12 +17,14 @@ default-extensions:
   - FlexibleContexts
   - LambdaCase
   - MultiWayIf
+  - NoImplicitPrelude
   - OverloadedStrings
   - RecordWildCards
 
 dependencies:
   - aeson
   - base
+  - mitchell-prelude
 
 library:
   source-dirs: src

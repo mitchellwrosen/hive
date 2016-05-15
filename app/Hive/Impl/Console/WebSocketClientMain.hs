@@ -2,12 +2,12 @@
 
 module Main where
 
+import Mitchell.Prelude
+
 import Hive
 import Hive.Impl.Common
 import Hive.Impl.Console.Player
 
-import Control.Monad
-import Control.Monad.IO.Class
 import Control.Monad.Trans.Free
 import System.Console.Haskeline
 
@@ -20,11 +20,11 @@ main = WS.runClient "127.0.0.1" 6789 "/" $ \conn -> do
 
 wsShim :: forall m. MonadIO m => WS.Connection -> (Game -> Hive m ()) -> m ()
 wsShim conn player = do
-  liftIO (putStrLn "Waiting for game")
+  putStrLn "Waiting for game"
   bytes <- liftIO (WS.receiveData conn)
-  liftIO (putStrLn "Received game")
+  putStrLn "Received game"
   case Aeson.decode bytes of
-    Nothing -> liftIO (putStrLn "Error decoding game from server")
+    Nothing -> putStrLn "Error decoding game from server"
     Just game -> go (player game)
  where
   go :: Hive m () -> m ()
@@ -38,5 +38,5 @@ wsShim conn player = do
       liftIO (WS.sendBinaryData conn (Aeson.encode action))
       bytes <- liftIO (WS.receiveData conn)
       case Aeson.decode bytes of
-        Nothing -> liftIO (putStrLn "Error decoding game state from server")
+        Nothing -> putStrLn "Error decoding game state from server"
         Just state -> go (k state)

@@ -1,11 +1,11 @@
 module Hive.Monad where
 
+import Mitchell.Prelude
+
 import Data.HexBoard (BoardIndex)
 import Hive.Bug
 import Hive.Game
 
-import Data.List.NonEmpty       (NonEmpty)
-import Data.Text                (Text)
 import Control.Monad.Trans.Free
 
 -- | Underlying player action functor.
@@ -37,11 +37,11 @@ makePlacement
   => Bug
   -> BoardIndex
   -> Hive m (Either Text GameState)
-makePlacement bug idx = liftF (MakePlacement bug idx id)
+makePlacement bug idx = liftF (MakePlacement bug idx identity)
 
 makeMove
   :: Monad m
   => BoardIndex
   -> NonEmpty BoardIndex
   -> Hive m (Either Text GameState)
-makeMove src path = liftF (MakeMove src path id)
+makeMove src path = liftF (MakeMove src path identity)

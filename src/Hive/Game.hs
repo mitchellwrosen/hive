@@ -2,13 +2,14 @@
 
 module Hive.Game where
 
+import Mitchell.Prelude
+
 import Hive.Board
 import Hive.Bug
 import Hive.Player
 
 import Control.Lens
 import Data.Aeson
-import GHC.Generics (Generic)
 
 
 data Game = Game
