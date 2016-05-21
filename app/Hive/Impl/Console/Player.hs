@@ -92,7 +92,7 @@ actionParser = placeParser <|> moveParser
 printBoard :: Board -> IO ()
 printBoard board = do
   putStrLn (cs (colored White column_nums))
-  putStrLn (cs ("   " ++ replicate (3 * (board^.boardWidth) - 2) '-'))
+  putStrLn (cs ("   " ++ replicate (3 * (boardWidth board) - 2) '-'))
 
   Vector.imapM_
     printTwoRows
@@ -101,7 +101,7 @@ printBoard board = do
   column_nums :: String
   column_nums =
     "   " ++ concatMap (printf "%-2d ")
-                       (take (board^.boardWidth) [(0::Int)..])
+                       (take (boardWidth board) [(0::Int)..])
 
   printTwoRows :: Int -> ([String], [String]) -> IO ()
   printTwoRows row (es, os)

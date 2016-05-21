@@ -20,8 +20,8 @@ type Board = HexBoard Cell
 growBoard :: BoardIndex -> Board -> Board
 growBoard (row, col) board =
   let
-    w = view boardWidth board
-    h = view boardHeight board
+    w = boardWidth board
+    h = boardHeight board
 
     f0, f1, f2, f3 :: Board -> Board
     f0 = if row == 0   then prependRow else identity
@@ -57,13 +57,13 @@ prependRow :: Board -> Board
 prependRow board = over boardTiles f board
  where
   f :: Vector (Vector [Tile]) -> Vector (Vector [Tile])
-  f = Vector.cons (Vector.replicate (board^.boardWidth) [])
+  f = Vector.cons (Vector.replicate (boardWidth board) [])
 
 appendRow :: Board -> Board
 appendRow board = over boardTiles f board
  where
   f :: Vector (Vector [Tile]) -> Vector (Vector [Tile])
-  f = flip Vector.snoc (Vector.replicate (board^.boardWidth) [])
+  f = flip Vector.snoc (Vector.replicate (boardWidth board) [])
 
 prependCol :: Board -> Board
 prependCol =

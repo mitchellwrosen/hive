@@ -1,8 +1,4 @@
-{-# LANGUAGE DeriveGeneric       #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TemplateHaskell     #-}
-{-# LANGUAGE TupleSections       #-}
-{-# LANGUAGE TypeFamilies        #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Data.HexBoard
     ( HexBoard(..)
@@ -60,6 +56,7 @@ type BoardIndex = (Int, Int)
 --
 -- Uses the "odd-q" or "even-q" vertical layout (tracked by boardParity field),
 -- as depected here:
+--
 -- http://www.redblobgames.com/grids/hexagons/#coordinates
 --
 -- Invariant: each row contains the same number of columns as the others (the
@@ -69,7 +66,7 @@ type BoardIndex = (Int, Int)
 data HexBoard a = HexBoard
     { _boardTiles  :: Vector (Vector a)
     , _boardParity :: Parity
-    } deriving (Eq, Show, Generic, FromJSON, ToJSON)
+    } deriving (Eq, Show)
 makeLenses ''HexBoard
 
 type instance Index   (HexBoard a) = (Int, Int)
@@ -78,15 +75,28 @@ type instance IxValue (HexBoard a) = a
 instance Ixed (HexBoard a) where
     ix (row, col) = boardTiles . ix row . ix col
 
-boardWidth :: Getter (HexBoard a) Int
-boardWidth = to (\board -> maybe 0 length (board ^? boardTiles . ix 0))
+instance ToJSON a => ToJSON (HexBoard a) where
+  toJSON board = object
+    [ ("tiles",  toJSON (view boardTiles  board))
+    , ("parity", toJSON (view boardParity board))
+    ]
 
-boardHeight :: Getter (HexBoard a) Int
-boardHeight = boardTiles . to length
+instance FromJSON a => FromJSON (HexBoard a) where
+  parseJSON = withObject "object" $ \o ->
+    HexBoard
+      <$> o .: "tiles"
+      <*> o .: "parity"
+
+
+boardWidth :: HexBoard a -> Int
+boardWidth = maybe 0 length . preview (boardTiles . ix 0)
+
+boardHeight :: HexBoard a -> Int
+boardHeight = length . view boardTiles
 
 boardNeighbors :: BoardIndex -> HexBoard a -> [(BoardIndex, a)]
 boardNeighbors (row, col) board =
-  catMaybes (map (\i -> map (i,) (board ^? ix i)) neighbor_idxs)
+  catMaybes (map (\i -> map (i,) (preview (ix i) board)) neighbor_idxs)
  where
   neighbor_idxs :: [BoardIndex]
   neighbor_idxs =
@@ -105,7 +115,7 @@ boardNeighbors (row, col) board =
 
 boardAdjacency :: HexBoard a -> BoardIndex -> BoardIndex -> Maybe Adjacency
 boardAdjacency board (r0,c0) (r1,c1) =
-  case tileParity c0 (board^.boardParity) of
+  case tileParity c0 (view boardParity board) of
     Even
       | r0 == r1+1 && c0 == c1   -> Just Up
       | r0 == r1   && c0 == c1+1 -> Just UpLeft

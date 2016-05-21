@@ -21,6 +21,9 @@ default-extensions:
   - OverloadedStrings
   - RankNTypes
   - RecordWildCards
+  - ScopedTypeVariables
+  - TupleSections
+  - TypeFamilies
 
 dependencies:
   - aeson

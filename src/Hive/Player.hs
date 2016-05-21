@@ -11,8 +11,7 @@ type Winner = Maybe Player
 data Player
   = P1
   | P2
-  deriving (Eq, Generic, Ord, Show, FromJSON, ToJSON)
-
+  deriving (Eq, Ord, Show, Generic, FromJSON, ToJSON)
 
 nextPlayer :: Player -> Player
 nextPlayer P1 = P2
