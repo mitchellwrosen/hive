@@ -1,7 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Hive
-  ( runHive
+  ( stepHive
+  , runHive
   , module Control.Monad.Trans.Class
   , module Data.HexBoard
   , module Hive.Board
@@ -35,11 +36,166 @@ import qualified Data.Vector        as Vector
 --------------------------------------------------------------------------------
 -- Hive interpreter
 
+-- | Step the Hive game forward. Assumes the given Game is not already won, and
+-- is otherwise in some sort of sensible state.
+--
+-- Returns Left if the given move was invalid, and Right with the updated game
+-- state and continuation if the given move was valid.
+stepHive
+  :: forall m.
+     Monad m
+  => Game
+  -> HiveF (Hive m ())
+  -> m (Either (Hive m ()) (GameState, GameState -> Hive m ()))
+stepHive game = \case
+  MakePlacement bug board_idx k -> do
+    result <- runExceptT $ do
+      let neighbors :: [Cell]
+          neighbors = map snd (boardNeighbors board_idx board)
+
+          has_opponent_neighbor :: Bool
+          has_opponent_neighbor = any (\c -> cellOwner c == Just opponent) neighbors
+
+          has_occupied_neighbor :: Bool
+          has_occupied_neighbor = not (all null neighbors)
+
+      -- The current player must have the bug in supply.
+      when (bug `notElem` view gameBugs game) $
+        throwError "No such bug"
+
+      -- Queen must be placed by move 4. That is, we may not place a non-queen
+      -- on turn 4 with a queen in the supply.
+      when (bug /= Queen &&
+            Queen `elem` view gameBugs game &&
+            view gamePlaced game == 3) $
+        throwError "Must place Queen by turn 4"
+
+      case preview (ix board_idx) board of
+        -- Index must be in bounds.
+        Nothing -> throwError "Index out of bounds"
+        -- Cell must not be occupied.
+        Just (_:_) -> throwError "Cell occupied"
+        _ -> pure ()
+
+      case view gamePlaced game + view gamePlaced' game of
+        -- The first tile placed has no restrictions (we would have already
+        -- thrown an error if it was not placed at index (0, 0))
+        0 -> pure ()
+        -- The second tile must have at least one occupied neighbor (assumed to
+        -- be the opponent's).
+        1 ->
+          when (not has_occupied_neighbor) $
+            throwError "Must place tile adjacent to the hive"
+        -- All other tiles must have at least one occupied neighbor, none of
+        -- which can belong to the opponent.
+        _ -> do
+          when (not has_occupied_neighbor) $
+            throwError "Must place tile adjacent to the hive"
+
+          when has_opponent_neighbor $
+            throwError "May not place tile adjacent to opponent's tile"
+
+      let updateGame :: Game -> Game
+          updateGame =
+              over gameBoard   f
+            . over gamePlayer  nextPlayer
+            . set  gameBugs    (view gameBugs' game)
+            . set  gameBugs'   (List.delete bug (view gameBugs game))
+            . set  gamePlaced  (view gamePlaced' game)
+            . set  gamePlaced' (view gamePlaced game + 1)
+           where
+            -- Poke the new tile into place, then possibly grow the board in
+            -- all 4 directions to accomodate new viable cells to play at.
+            f :: Board -> Board
+            f = growBoard board_idx
+              . over (ix board_idx) (\[] -> [Tile (game^.gamePlayer) bug])
+
+      pure (updateGame game)
+
+    case result of
+      Left err    -> wasInvalidMove err k
+      Right game' -> wasValidMove board_idx game' k
+
+  MakeMove src path k -> do
+    let dst :: BoardIndex
+        dst = NonEmpty.last path
+
+    result <- runExceptT $ do
+      -- The queen must be placed before moving any tiles.
+      when (Queen `elem` view gameBugs game) $ do
+        throwError "May not move a tile before placing the Queen"
+
+      -- The index of the first cell must be in bounds.
+      cell <-
+        case preview (ix src) board of
+          Nothing   -> throwError "Index out of bounds"
+          Just cell -> pure cell
+
+      -- The source index must be occupied.
+      (t@(Tile p bug), ts) <-
+        case cell of
+          [] -> throwError "No tile at index"
+          (t:ts) -> pure (t,ts)
+
+      -- The tile at the source index must belong to the current player.
+      when (p /= view gamePlayer game) $
+        throwError "May not move opponent's tile"
+
+      validateMove bug src path board
+
+      let updateGame :: Game -> Game
+          updateGame =
+              over gameBoard   f
+            . over gamePlayer  nextPlayer
+            . set  gameBugs    (view gameBugs' game)
+            . set  gameBugs'   (view gameBugs game)
+            . set  gamePlaced  (view gamePlaced' game)
+            . set  gamePlaced' (view gamePlaced game)
+           where
+            f :: Board -> Board
+            f = growBoard dst
+              . over (ix dst) (t:)
+              . set (ix src) ts
+
+      pure (updateGame game)
+
+    case result of
+      Left err    -> wasInvalidMove err k
+      Right game' -> wasValidMove dst game' k
+
+ where
+  -- Given the updated game, check to see if the game's over; construct and
+  -- return the appropriate GameState.
+  wasValidMove
+    :: BoardIndex -- Where this move landed
+    -> Game
+    -> (Either Text GameState -> Hive m ())
+    -> m (Either (Hive m ()) (GameState, GameState -> Hive m ()))
+  wasValidMove modified_idx game' k = do
+    let game_state =
+          maybe (GameActive game')
+                GameOver
+                (boardWinner modified_idx (view gameBoard game'))
+    pure (Right (game_state, k . Right))
+
+  wasInvalidMove
+    :: Text
+    -> (Either Text GameState -> Hive m ())
+    -> m (Either (Hive m ()) (GameState, GameState -> Hive m ()))
+  wasInvalidMove err k = pure (Left (k (Left err)))
+
+  board :: Board
+  board = view gameBoard game
+
+  opponent :: Player
+  opponent = nextPlayer (view gamePlayer game)
+
+
 runHive
   :: Monad m
   => (Game -> Hive m ()) -- Player 1
   -> (Game -> Hive m ()) -- Player 2
-  -> m ()
+  -> m (Maybe Winner)    -- Nothing if some player exited early
 runHive p1 p2 =
   runHive'
     game
@@ -74,175 +230,37 @@ runHive'
   -> Hive m ()                -- Current player logic
   -> (GameState -> Hive m ()) -- Next player logic, waiting for board resulting
                               --   from current player's move
-  -> m ()
+  -> m (Maybe Winner)
 runHive' game cur_player next_player = do
-  let board = view gameBoard game
-
   runFreeT cur_player >>= \case
     -- The current player's logic has ended, so we have nothing left to
     -- interpret. This shouldn't happen with well-written players.
-    Pure () -> pure ()
+    Pure () -> pure Nothing
 
-    Free (MakePlacement bug board_idx k) -> do
-      result <- runExceptT $ do
-        let neighbors :: [Cell]
-            neighbors = map snd (boardNeighbors board_idx board)
-
-            has_opponent_neighbor :: Bool
-            has_opponent_neighbor = any (\c -> cellOwner c == Just opponent) neighbors
-
-            has_occupied_neighbor :: Bool
-            has_occupied_neighbor = not (all null neighbors)
-
-        -- The current player must have the bug in supply.
-        when (bug `notElem` view gameCurPlayerBugs game) $
-          throwError "No such bug"
-
-        -- Queen must be placed by move 4. That is, we may not place a non-queen
-        -- on turn 4 with a queen in the supply.
-        when (bug /= Queen &&
-              Queen `elem` view gameCurPlayerBugs game &&
-              view gameCurPlayerPlaced game == 3) $
-          throwError "Must place Queen by turn 4"
-
-        case preview (ix board_idx) board of
-          -- Index must be in bounds.
-          Nothing -> throwError "Index out of bounds"
-          -- Cell must not be occupied.
-          Just (_:_) -> throwError "Cell occupied"
-          _ -> pure ()
-
-        case num_bugs_placed of
-          -- The first tile placed has no restrictions (we would have already
-          -- thrown an error if it was not placed at index (0, 0))
-          0 -> pure ()
-          -- The second tile must have at least one occupied neighbor (assumed to
-          -- be the opponent's).
-          1 ->
-            when (not has_occupied_neighbor) $
-              throwError "Must place tile adjacent to the hive"
-          -- All other tiles must have at least one occupied neighbor, none of
-          -- which can belong to the opponent.
-          _ -> do
-            when (not has_occupied_neighbor) $
-              throwError "Must place tile adjacent to the hive"
-
-            when has_opponent_neighbor $
-              throwError "May not place tile adjacent to opponent's tile"
-
-        let updateGame :: Game -> Game
-            updateGame =
-                over gameBoard           f
-              . over gamePlayer          nextPlayer
-              . over gameCurPlayerBugs   (List.delete bug)
-              . over gameCurPlayerPlaced (+1)
-             where
-              -- Poke the new tile into place, then possibly grow the board in
-              -- all 4 directions to accomodate new viable cells to play at.
-              f :: Board -> Board
-              f = growBoard board_idx
-                . over (ix board_idx) (\[] -> [Tile (game^.gamePlayer) bug])
-
-        pure (updateGame game)
-
-      case result of
-        Left err    -> invalidMove err k
-        Right game' -> next board_idx game' k
-
-    Free (MakeMove src path k) -> do
-      let dst :: BoardIndex
-          dst = NonEmpty.last path
-
-      result <- runExceptT $ do
-        -- The queen must be placed before moving any tiles.
-        when (Queen `elem` view gameCurPlayerBugs game) $ do
-          throwError "May not move a tile before placing the Queen"
-
-        -- The index of the first cell must be in bounds.
-        cell <-
-          case preview (ix src) board of
-            Nothing   -> throwError "Index out of bounds"
-            Just cell -> pure cell
-
-        -- The source index must be occupied.
-        (t@(Tile p bug), ts) <-
-          case cell of
-            [] -> throwError "No tile at index"
-            (t:ts) -> pure (t,ts)
-
-        -- The tile at the source index must belong to the current player.
-        when (p /= view gamePlayer game) $
-          throwError "May not move opponent's tile"
-
-        validateMove bug src path board
-
-        let updateGame :: Game -> Game
-            updateGame =
-                over gameBoard f
-              . over gamePlayer nextPlayer
-             where
-              f :: Board -> Board
-              f = growBoard dst
-                . over (ix dst) (t:)
-                . set (ix src) ts
-
-        pure (updateGame game)
-
-      case result of
-        Left err    -> invalidMove err k
-        Right game' -> next dst game' k
-
-  where
-    -- Given the updated game state, check to see if the game's over; if it
-    -- isn't, recurse.
-    next :: BoardIndex -> Game -> (Either Text GameState -> Hive m ()) -> m ()
-    next modified_idx game' k =
-      case boardWinner modified_idx (game'^.gameBoard) of
-        -- No winner yet - loop with the updated game state and
+    Free move ->
+      stepHive game move >>= \case
+        -- The current player made an invalid move. Loop without swapping
         -- players.
-        Nothing ->
-          runHive'
-            game'
-            (next_player (GameActive game'))
-            (\result -> k (Right result))
+        Left cur_player' -> runHive' game cur_player' next_player
 
-        -- If the game's over, run side-effects of player logic one
-        -- last time (to inform them of the game ending), but don't
-        -- bother continuing to interpret the AST. An oddly written
-        -- player may attempt to make a move after the game is said
-        -- to be over, but we don't care, we just stop interpreting.
-        Just winner -> do
-          _ <- runFreeT $ do
-            k (Right (GameOver winner))
-            next_player (GameOver winner)
-          pure ()
+        -- The current player made a valid move.
+        Right (game_state, cur_player') ->
+          case game_state of
+            -- If the game's not over yet, swap players and recurse.
+            GameActive game' ->
+              runHive' game' (next_player game_state) cur_player'
 
-    -- Recurse with the same game state, providing Nothing to the current
-    -- player's continuation to indicate an invalid move.
-    invalidMove :: Text -> (Either Text GameState -> Hive m ()) -> m ()
-    invalidMove err k = runHive' game (k (Left err)) next_player
+            -- If the game's over, run side-effects of player logic one last
+            -- time (to inform them of the game ending), but don't bother
+            -- continuing to interpret the AST. An oddly written player may
+            -- attempt to make a move after the game is said to be over, but we
+            -- don't care, we just stop interpreting.
+            GameOver winner -> do
+              _ <- runFreeT $ do
+                cur_player' game_state
+                next_player game_state
+              pure (Just winner)
 
-    -- Lens onto the current player's unplaced bugs.
-    gameCurPlayerBugs :: Lens' Game [Bug]
-    gameCurPlayerBugs =
-      case view gamePlayer game of
-        P1 -> gameP1Bugs
-        P2 -> gameP2Bugs
-
-    -- Lens onto the current player's # of placed bugs.
-    gameCurPlayerPlaced :: Lens' Game Int
-    gameCurPlayerPlaced =
-      case view gamePlayer game of
-          P1 -> gameP1Placed
-          P2 -> gameP2Placed
-
-    opponent :: Player
-    opponent = nextPlayer (view gamePlayer game)
-
-    num_bugs_placed :: Int
-    num_bugs_placed =
-      view gameP1Placed game +
-      view gameP2Placed game
 
 -- | Is this a valid move?
 --

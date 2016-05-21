@@ -29,7 +29,7 @@ wsShim conn player = do
  where
   go :: Hive m () -> m ()
   go = runFreeT >=> \case
-    Pure () -> pure ()
+    Pure _ -> pure ()
     Free instr -> do
       let (action, k) =
             case instr of

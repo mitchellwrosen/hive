@@ -49,8 +49,8 @@ boardWinner i0 board =
   go queens =
     case (elem P1 queens, elem P2 queens) of
       (True, True) -> Just Nothing
-      (True,    _) -> Just (Just P1)
-      (   _, True) -> Just (Just P2)
+      (True,    _) -> Just (Just P2)
+      (   _, True) -> Just (Just P1)
       _            -> Nothing
 
 prependRow :: Board -> Board

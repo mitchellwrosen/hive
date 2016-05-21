@@ -24,6 +24,7 @@ consolePlayer name game0 = do
     putStrLn (cs ("To move a piece:  " ++ colored White "move 2 3, 2 4, 3 4"))
   loop game0
  where
+  loop :: Game -> Hive (InputT IO) ()
   loop game = do
     liftIO $ do
       putStrLn ""
@@ -31,7 +32,9 @@ consolePlayer name game0 = do
 
     let prompt = colored (player2color (game^.gamePlayer)) (name ++ "> ")
     lift (getInputLine prompt) >>= \case
-      Nothing -> pure ()
+      Nothing -> do
+        putStrLn (cs (colored Red "Parse error."))
+        loop game
       Just line ->
         case runParser actionParser "" line of
           Left _ -> do

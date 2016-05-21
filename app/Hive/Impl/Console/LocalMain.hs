@@ -12,3 +12,4 @@ main =
   runInputT defaultSettings
     (runHive (consolePlayer "Player 1")
              (consolePlayer "Player 2"))
+    >>= print

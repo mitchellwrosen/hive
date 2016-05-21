@@ -19,6 +19,7 @@ default-extensions:
   - MultiWayIf
   - NoImplicitPrelude
   - OverloadedStrings
+  - RankNTypes
   - RecordWildCards
 
 dependencies:
@@ -58,18 +59,26 @@ executables:
       - vector
 
   hive-ws-server:
-    source-dirs: app
+    source-dirs:
+      - app
+      - app/extra
     main: Hive/Impl/Console/WebSocketServerMain.hs
-    other-modules:
-      - Hive.Impl.Common
     dependencies:
       - async
+      - atomic-primops
       - bytestring
       - hive
+      - http-types
+      - logging-effect
+      - monad-unlift
+      - monad-unlift-ref
       - network
       - semigroups
       - transformers
       - vector
+      - wai
+      - wai-websockets
+      - warp
       - websockets
 
   hive-ws-client:

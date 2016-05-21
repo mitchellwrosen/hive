@@ -13,12 +13,12 @@ import Data.Aeson
 
 
 data Game = Game
-    { _gameBoard    :: !Board  -- Game board
-    , _gamePlayer   :: !Player -- Current player
-    , _gameP1Bugs   :: ![Bug]  -- Player 1's bugs
-    , _gameP2Bugs   :: ![Bug]  -- Player 2's bugs
-    , _gameP1Placed :: !Int    -- # of bugs P1 has placed
-    , _gameP2Placed :: !Int    -- # of bugs P2 has placed
+    { _gameBoard   :: !Board  -- Game board
+    , _gamePlayer  :: !Player -- Current player
+    , _gameBugs    :: ![Bug]  -- Current player's bugs
+    , _gameBugs'   :: ![Bug]  -- Next player's bugs
+    , _gamePlaced  :: !Int    -- # of bugs current player has placed
+    , _gamePlaced' :: !Int    -- # of bugs next player has placed
     } deriving (Eq, Generic, Show, FromJSON, ToJSON)
 makeLenses ''Game
 
@@ -37,3 +37,5 @@ data GameState
     = GameOver (Maybe Player)
     | GameActive Game
     deriving (Eq, Show, Generic, FromJSON, ToJSON)
+
+-- instance
