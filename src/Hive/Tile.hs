@@ -14,8 +14,20 @@ import Control.Lens
 data Tile = Tile
     { _tilePlayer :: Player
     , _tileBug    :: Bug
-    } deriving (Eq, Generic, Ord, Show, FromJSON, ToJSON)
+    } deriving (Eq, Ord, Show)
 makeLenses ''Tile
+
+instance ToJSON Tile where
+  toJSON Tile{..} = object
+    [ ("player", toJSON _tilePlayer)
+    , ("bug",    toJSON _tileBug)
+    ]
+
+instance FromJSON Tile where
+  parseJSON = withObject "object" $ \o ->
+    Tile
+      <$> o .: "player"
+      <*> o .: "bug"
 
 -- A single cell is a stack of tiles, where the head of the list represents the
 -- top of the stack. This will only ever be a beetle or a mosquito, per the

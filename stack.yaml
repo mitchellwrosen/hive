@@ -1,13 +1,9 @@
 resolver: lts-5.16
 packages:
   - .
-  - location: lib/monad-unlift/monad-unlift
-    extra-dep: true
-  - location: lib/monad-unlift/monad-unlift-ref
-    extra-dep: true
   - location:
       git: git@github.com:mitchellwrosen/mitchell-prelude
-      commit: ff12734
+      commit: a4015ed
     extra-dep: true
 
 extra-deps:

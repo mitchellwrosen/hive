@@ -16,19 +16,23 @@ default-extensions:
   - DeriveGeneric
   - FlexibleContexts
   - LambdaCase
+  - MultiParamTypeClasses
   - MultiWayIf
   - NoImplicitPrelude
   - OverloadedStrings
+  - PatternSynonyms
   - RankNTypes
   - RecordWildCards
   - ScopedTypeVariables
   - TupleSections
   - TypeFamilies
+  - ViewPatterns
 
 dependencies:
   - aeson
   - base
   - mitchell-prelude
+  - text
 
 library:
   source-dirs: src
@@ -39,7 +43,6 @@ library:
     - free
     - mtl
     - semigroups
-    - text
     - transformers
     - vector
 
@@ -48,16 +51,15 @@ executables:
     source-dirs: app
     main: Hive/Impl/Console/LocalMain.hs
     other-modules:
-      - Hive.Impl.Common
       - Hive.Impl.Console.Player
     dependencies:
       - ansi-terminal
+      - bytestring
       - haskeline
       - hive
       - lens
       - megaparsec
       - semigroups
-      - text
       - transformers
       - vector
 
@@ -68,13 +70,14 @@ executables:
     main: Hive/Impl/Console/WebSocketServerMain.hs
     dependencies:
       - async
-      - atomic-primops
       - bytestring
+      - free
       - hive
       - http-types
+      - lens
       - logging-effect
+      - mmorph
       - monad-unlift
-      - monad-unlift-ref
       - network
       - semigroups
       - transformers
@@ -85,20 +88,20 @@ executables:
       - websockets
 
   hive-ws-client:
-    source-dirs: app
+    source-dirs:
+      - app
+      - app/extra
     main: Hive/Impl/Console/WebSocketClientMain.hs
-    other-modules:
-      - Hive.Impl.Common
-      - Hive.Impl.Console.Player
     dependencies:
       - ansi-terminal
+      - bytestring
       - free
       - haskeline
       - hive
       - lens
+      - logging-effect
       - megaparsec
       - semigroups
-      - text
       - transformers
       - vector
       - websockets

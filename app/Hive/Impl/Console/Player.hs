@@ -5,7 +5,6 @@ module Hive.Impl.Console.Player
 import Mitchell.Prelude
 
 import Hive
-import Hive.Impl.Common
 
 import Control.Lens
 import Prelude (String, read) -- TODO: Text
@@ -19,14 +18,14 @@ import qualified Data.Vector        as Vector
 
 consolePlayer :: String -> Game -> Hive (InputT IO) ()
 consolePlayer name game0 = do
-  liftIO $ do
+  io $ do
     putStrLn (cs ("To place a piece: " ++ colored White "place ant 0 1"))
     putStrLn (cs ("To move a piece:  " ++ colored White "move 2 3, 2 4, 3 4"))
   loop game0
  where
   loop :: Game -> Hive (InputT IO) ()
   loop game = do
-    liftIO $ do
+    io $ do
       putStrLn ""
       printBoard (game^.gameBoard)
 
@@ -41,16 +40,13 @@ consolePlayer name game0 = do
             putStrLn (cs (colored Red "Parse error."))
             loop game
           Right action -> do
-            result <-
-              case action of
-                Place bug idx -> makePlacement bug idx
-                Move x xs     -> makeMove x xs
+            result <- hiveAction action
 
             case result of
               Left err -> do
                 putStrLn (cs (colored Red ("Invalid move! " ++ Text.unpack err)))
                 loop game
-              Right (GameOver winner)  -> liftIO (print winner)
+              Right (GameOver winner)  -> io (print winner)
               Right (GameActive game') -> loop game'
 
 actionParser :: Parsec String Action

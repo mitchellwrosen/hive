@@ -1,6 +1,7 @@
 module Hive
   ( stepHive
   , runHive
+  , stepPlayer
   , module Control.Monad.Trans.Class
   , module Data.HexBoard
   , module Hive.Board
@@ -29,24 +30,41 @@ import Data.List.NonEmpty        (NonEmpty(..))
 import qualified Data.List          as List
 import qualified Data.List.Extra    as List
 import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.Vector        as Vector
 
 --------------------------------------------------------------------------------
 -- Hive interpreter
 
--- | Step the Hive game forward. Assumes the given Game is not already won, and
--- is otherwise in some sort of sensible state.
+-- | Step the Hive player forward with the given game. Assumes that the game is
+-- not already over, or is otherwise in some sort of nonsensical state.
 --
--- Returns Left if the given move was invalid, and Right with the updated game
--- state and continuation if the given move was valid.
+--   - If the player ends abruptly (i.e. @pure ()@), returns Nothing. This
+--     should never happen with well-written players.
+--
+--   - If the player submits a bad move, 'stepHive' re-runs the same player
+--     with the same game state.
+--
+--   - If the player submits a winning move, the player is stepped one last time
+--     (to run any side-effects associated with receiving a 'GameOver'), and
+--     then @Just (Left winner)@ is returned (presumably, to inform the other
+--     player, and any spectators, or whatever.
+--
+--   - If the player submits an ordinary valid move, the resulting updated game
+--     and player continuation is returned as @Just Right (game, k)@. The
+--     continuation should eventually be called with the 'GameState' resulting
+--     from the other player's valid move.
+--
 stepHive
   :: forall m.
      Monad m
   => Game
-  -> HiveF (Hive m ())
-  -> m (Either (Hive m ()) (GameState, GameState -> Hive m ()))
-stepHive game = \case
-  MakePlacement bug board_idx k -> do
+  -> Hive m ()
+  -> m (Maybe (Either Winner (Game, GameState -> Hive m ())))
+stepHive game = runFreeT >=> \case
+  -- The player's logic has ended, so we have nothing left to interpret. This
+  -- shouldn't happen with well-written players.
+  Pure () -> pure Nothing
+
+  Free (MakePlacement bug board_idx k) -> do
     result <- runExceptT $ do
       let neighbors :: [Cell]
           neighbors = map snd (boardNeighbors board_idx board)
@@ -114,7 +132,7 @@ stepHive game = \case
       Left err    -> wasInvalidMove err k
       Right game' -> wasValidMove board_idx game' k
 
-  MakeMove src path k -> do
+  Free (MakeMove src path k) -> do
     let dst :: BoardIndex
         dst = NonEmpty.last path
 
@@ -168,19 +186,19 @@ stepHive game = \case
     :: BoardIndex -- Where this move landed
     -> Game
     -> (Either Text GameState -> Hive m ())
-    -> m (Either (Hive m ()) (GameState, GameState -> Hive m ()))
-  wasValidMove modified_idx game' k = do
-    let game_state =
-          maybe (GameActive game')
-                GameOver
-                (boardWinner modified_idx (view gameBoard game'))
-    pure (Right (game_state, k . Right))
+    -> m (Maybe (Either Winner (Game, GameState -> Hive m ())))
+  wasValidMove modified_idx game' k =
+    case boardWinner modified_idx (view gameBoard game') of
+      Nothing -> pure (Just (Right (game', k . Right)))
+      Just winner -> do
+        stepPlayer (k (Right (GameOver winner)))
+        pure (Just (Left winner))
 
   wasInvalidMove
     :: Text
     -> (Either Text GameState -> Hive m ())
-    -> m (Either (Hive m ()) (GameState, GameState -> Hive m ()))
-  wasInvalidMove err k = pure (Left (k (Left err)))
+    -> m (Maybe (Either Winner (Game, GameState -> Hive m ())))
+  wasInvalidMove err k = stepHive game (k (Left err))
 
   board :: Board
   board = view gameBoard game
@@ -189,6 +207,7 @@ stepHive game = \case
   opponent = nextPlayer (view gamePlayer game)
 
 
+-- | Run a two-player Hive game.
 runHive
   :: Monad m
   => (Game -> Hive m ()) -- Player 1
@@ -196,32 +215,14 @@ runHive
   -> m (Maybe Winner)    -- Nothing if some player exited early
 runHive p1 p2 =
   runHive'
-    game
-    (p1 game)
+    initialGame
+    (p1 initialGame)
     -- There's no way for the game to have a winner after just 1 turn,
     -- so this partial pattern match is ok.
     (\case
         GameActive game' -> p2 game'
         _ -> error "impossible")
- where
-  game :: Game
-  game = Game board P1 bugs bugs 0 0
 
-  -- One empty tile stack
-  board :: Board
-  board = HexBoard (Vector.singleton (Vector.singleton [])) Even
-
-  bugs :: [Bug]
-  bugs =
-    [ Ant, Ant, Ant
-    , Grasshopper, Grasshopper, Grasshopper
-    , Spider, Spider
-    , Beetle, Beetle
-    , Queen
-    ]
-
--- Invariant: the first Hive monad represents the current player
--- (this lets us avoid a case-analysis of game^.gamePlayer)
 runHive'
   :: forall m. Monad m
   => Game                     -- Game board
@@ -229,35 +230,23 @@ runHive'
   -> (GameState -> Hive m ()) -- Next player logic, waiting for board resulting
                               --   from current player's move
   -> m (Maybe Winner)
-runHive' game cur_player next_player = do
-  runFreeT cur_player >>= \case
-    -- The current player's logic has ended, so we have nothing left to
-    -- interpret. This shouldn't happen with well-written players.
-    Pure () -> pure Nothing
+runHive' game cur_player next_player =
+  stepHive game cur_player >>= \case
+    Nothing -> pure Nothing
+    Just game_state ->
+      case game_state of
+        Left winner -> do
+          stepPlayer (next_player (GameOver winner))
+          pure (Just winner)
+        Right (game', cur_player') ->
+          runHive' game' (next_player (GameActive game')) cur_player'
 
-    Free move ->
-      stepHive game move >>= \case
-        -- The current player made an invalid move. Loop without swapping
-        -- players.
-        Left cur_player' -> runHive' game cur_player' next_player
-
-        -- The current player made a valid move.
-        Right (game_state, cur_player') ->
-          case game_state of
-            -- If the game's not over yet, swap players and recurse.
-            GameActive game' ->
-              runHive' game' (next_player game_state) cur_player'
-
-            -- If the game's over, run side-effects of player logic one last
-            -- time (to inform them of the game ending), but don't bother
-            -- continuing to interpret the AST. An oddly written player may
-            -- attempt to make a move after the game is said to be over, but we
-            -- don't care, we just stop interpreting.
-            GameOver winner -> do
-              _ <- runFreeT $ do
-                cur_player' game_state
-                next_player game_state
-              pure (Just winner)
+-- | Step a player action once, to cause side-effects. This is useful for
+-- informing a player that the game has ended, because we don't care about
+-- what the player's followup actions might be (in fact, anything besides
+-- 'Pure' indicates the player didn't properly respond to the 'GameOver'.
+stepPlayer :: Monad m => Hive m () -> m ()
+stepPlayer = void . runFreeT
 
 
 -- | Is this a valid move?

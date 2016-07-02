@@ -1,4 +1,4 @@
--- This file has been generated from package.yaml by hpack version 0.13.0.
+-- This file has been generated from package.yaml by hpack version 0.14.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -23,19 +23,19 @@ source-repository head
 library
   hs-source-dirs:
       src
-  default-extensions: DeriveAnyClass DeriveFunctor DeriveGeneric FlexibleContexts LambdaCase MultiWayIf NoImplicitPrelude OverloadedStrings RankNTypes RecordWildCards ScopedTypeVariables TupleSections TypeFamilies
+  default-extensions: DeriveAnyClass DeriveFunctor DeriveGeneric FlexibleContexts LambdaCase MultiParamTypeClasses MultiWayIf NoImplicitPrelude OverloadedStrings PatternSynonyms RankNTypes RecordWildCards ScopedTypeVariables TupleSections TypeFamilies ViewPatterns
   ghc-options: -Wall
   build-depends:
       aeson
     , base
     , mitchell-prelude
+    , text
     , containers
     , extra
     , lens
     , free
     , mtl
     , semigroups
-    , text
     , transformers
     , vector
   exposed-modules:
@@ -53,23 +53,23 @@ executable hive-local
   main-is: Hive/Impl/Console/LocalMain.hs
   hs-source-dirs:
       app
-  default-extensions: DeriveAnyClass DeriveFunctor DeriveGeneric FlexibleContexts LambdaCase MultiWayIf NoImplicitPrelude OverloadedStrings RankNTypes RecordWildCards ScopedTypeVariables TupleSections TypeFamilies
+  default-extensions: DeriveAnyClass DeriveFunctor DeriveGeneric FlexibleContexts LambdaCase MultiParamTypeClasses MultiWayIf NoImplicitPrelude OverloadedStrings PatternSynonyms RankNTypes RecordWildCards ScopedTypeVariables TupleSections TypeFamilies ViewPatterns
   ghc-options: -Wall
   build-depends:
       aeson
     , base
     , mitchell-prelude
+    , text
     , ansi-terminal
+    , bytestring
     , haskeline
     , hive
     , lens
     , megaparsec
     , semigroups
-    , text
     , transformers
     , vector
   other-modules:
-      Hive.Impl.Common
       Hive.Impl.Console.Player
   default-language: Haskell2010
 
@@ -77,26 +77,34 @@ executable hive-ws-client
   main-is: Hive/Impl/Console/WebSocketClientMain.hs
   hs-source-dirs:
       app
-  default-extensions: DeriveAnyClass DeriveFunctor DeriveGeneric FlexibleContexts LambdaCase MultiWayIf NoImplicitPrelude OverloadedStrings RankNTypes RecordWildCards ScopedTypeVariables TupleSections TypeFamilies
+    , app/extra
+  default-extensions: DeriveAnyClass DeriveFunctor DeriveGeneric FlexibleContexts LambdaCase MultiParamTypeClasses MultiWayIf NoImplicitPrelude OverloadedStrings PatternSynonyms RankNTypes RecordWildCards ScopedTypeVariables TupleSections TypeFamilies ViewPatterns
   ghc-options: -Wall
   build-depends:
       aeson
     , base
     , mitchell-prelude
+    , text
     , ansi-terminal
+    , bytestring
     , free
     , haskeline
     , hive
     , lens
+    , logging-effect
     , megaparsec
     , semigroups
-    , text
     , transformers
     , vector
     , websockets
   other-modules:
-      Hive.Impl.Common
+      Hive.Impl.Console.LocalMain
       Hive.Impl.Console.Player
+      Hive.Impl.Console.WebSocketServerMain
+      Network.Wai.Handler.Warp.Lifted
+      Network.Wai.Handler.WebSockets.Lifted
+      Network.Wai.Lifted
+      Network.WebSockets.Lifted
   default-language: Haskell2010
 
 executable hive-ws-server
@@ -104,20 +112,22 @@ executable hive-ws-server
   hs-source-dirs:
       app
     , app/extra
-  default-extensions: DeriveAnyClass DeriveFunctor DeriveGeneric FlexibleContexts LambdaCase MultiWayIf NoImplicitPrelude OverloadedStrings RankNTypes RecordWildCards ScopedTypeVariables TupleSections TypeFamilies
+  default-extensions: DeriveAnyClass DeriveFunctor DeriveGeneric FlexibleContexts LambdaCase MultiParamTypeClasses MultiWayIf NoImplicitPrelude OverloadedStrings PatternSynonyms RankNTypes RecordWildCards ScopedTypeVariables TupleSections TypeFamilies ViewPatterns
   ghc-options: -Wall
   build-depends:
       aeson
     , base
     , mitchell-prelude
+    , text
     , async
-    , atomic-primops
     , bytestring
+    , free
     , hive
     , http-types
+    , lens
     , logging-effect
+    , mmorph
     , monad-unlift
-    , monad-unlift-ref
     , network
     , semigroups
     , transformers
@@ -127,11 +137,9 @@ executable hive-ws-server
     , warp
     , websockets
   other-modules:
-      Hive.Impl.Common
       Hive.Impl.Console.LocalMain
       Hive.Impl.Console.Player
       Hive.Impl.Console.WebSocketClientMain
-      Control.Monad.Trans.State.Ref.Extra
       Network.Wai.Handler.Warp.Lifted
       Network.Wai.Handler.WebSockets.Lifted
       Network.Wai.Lifted
@@ -143,11 +151,12 @@ test-suite hive-test
   main-is: Spec.hs
   hs-source-dirs:
       test
-  default-extensions: DeriveAnyClass DeriveFunctor DeriveGeneric FlexibleContexts LambdaCase MultiWayIf NoImplicitPrelude OverloadedStrings RankNTypes RecordWildCards ScopedTypeVariables TupleSections TypeFamilies
+  default-extensions: DeriveAnyClass DeriveFunctor DeriveGeneric FlexibleContexts LambdaCase MultiParamTypeClasses MultiWayIf NoImplicitPrelude OverloadedStrings PatternSynonyms RankNTypes RecordWildCards ScopedTypeVariables TupleSections TypeFamilies ViewPatterns
   ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
     , base
     , mitchell-prelude
+    , text
     , hive
   default-language: Haskell2010

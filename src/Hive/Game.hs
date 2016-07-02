@@ -4,12 +4,15 @@ module Hive.Game where
 
 import Mitchell.Prelude
 
+import Data.HexBoard
 import Hive.Board
 import Hive.Bug
 import Hive.Player
 
 import Control.Lens
 import Data.Aeson
+
+import qualified Data.Vector as Vector
 
 
 data Game = Game
@@ -42,8 +45,35 @@ instance FromJSON Game where
       <*> o .: "placed"
       <*> o .: "placed'"
 
+initialGame :: Game
+initialGame = Game board P1 bugs bugs 0 0
+ where
+  -- One empty tile stack
+  board :: Board
+  board = HexBoard (Vector.singleton (Vector.singleton [])) Even
+
+  bugs :: [Bug]
+  bugs =
+    [ Ant, Ant, Ant
+    , Grasshopper, Grasshopper, Grasshopper
+    , Spider, Spider
+    , Beetle, Beetle
+    , Queen
+    ]
+
+
 -- | The state of a game: it's over, or it's active.
 data GameState
-    = GameOver (Maybe Player)
-    | GameActive Game
-    deriving (Eq, Show, Generic, FromJSON, ToJSON)
+  = GameOver Winner
+  | GameActive Game
+  deriving (Eq, Show, Generic, FromJSON, ToJSON)
+
+-- | Is the game over?
+gameOver :: GameState -> Bool
+gameOver (GameOver _) = True
+gameOver _ = False
+
+-- | Does this game concern this player? (i.e. is it over, or their turn?)
+gameConcerns :: Player -> GameState -> Bool
+gameConcerns _ (GameOver _) = True
+gameConcerns player (GameActive game) = player == view gamePlayer game
