@@ -26,7 +26,8 @@ import Hive.Player
 import Hive.Tile
 
 import Control.Lens
-import Data.Vector  (Vector)
+import Data.List.NonEmpty (NonEmpty(..))
+import Data.Vector        (Vector)
 
 import qualified Data.Set    as Set
 import qualified Data.Vector as Vector
@@ -103,13 +104,14 @@ appendCol :: Board -> Board
 appendCol = over (boardTiles . traverse) (flip Vector.snoc [])
 
 -- | Get a list of neighbor cells that have at least one tile in them.
---
--- Postcondition: each Cell is non-empty.
-occupiedNeighbors :: Board -> BoardIndex -> [(BoardIndex, Cell)]
-occupiedNeighbors board i = do
-  n <- boardNeighbors i board
-  guard (not (null (snd n)))
-  pure n
+occupiedNeighbors :: Board -> BoardIndex -> [(BoardIndex, NonEmpty Tile)]
+occupiedNeighbors board i =
+  catMaybes
+    (map (\(j,c) ->
+           case c of
+             []     -> Nothing
+             (t:ts) -> Just (j, (t :| ts)))
+         (boardNeighbors i board))
 
 occupiedNeighborIndices :: BoardIndex -> Board -> Set BoardIndex
 occupiedNeighborIndices i board =

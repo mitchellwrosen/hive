@@ -13,4 +13,4 @@ main =
     >>= print
 
 game :: InputT IO (Maybe Winner)
-game = runHive False (consolePlayer "Player 1") (consolePlayer "Player 2")
+game = runHive True True (consolePlayer "Player 1") (consolePlayer "Player 2")

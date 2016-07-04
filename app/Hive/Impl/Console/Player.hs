@@ -1,7 +1,7 @@
 module Hive.Impl.Console.Player
-    ( consolePlayer
-    , consoleCompletion
-    ) where
+  ( consolePlayer
+  , consoleCompletion
+  ) where
 
 import Mitchell.Prelude
 
@@ -60,7 +60,9 @@ consoleCompletion =
     (go [ ("ant",         ["ant"])
         , ("beetle",      ["beetle"])
         , ("grasshopper", ["grasshopper"])
-        , ("move",        ["move"])
+        , ("ladybug",     ["ladybug"])
+        , ("mosquito",    ["mosquito","move"])
+        , ("move",        ["mosquito","move"])
         , ("place",       ["place"])
         , ("queen",       ["queen"])
         , ("spider",      ["spider"])
@@ -94,9 +96,11 @@ actionParser = placeParser <|> moveParser
   bugParser :: Parsec String Bug
   bugParser =
         Ant         <$ string' "ant"
-    <|> Grasshopper <$ string' "grasshopper"
-    <|> Spider      <$ string' "spider"
     <|> Beetle      <$ string' "beetle"
+    <|> Grasshopper <$ string' "grasshopper"
+    <|> Ladybug     <$ string' "ladybug"
+    <|> Mosquito    <$ string' "mosquito"
+    <|> Spider      <$ string' "spider"
     <|> Queen       <$ string' "queen"
 
   idxParser :: Parsec String BoardIndex
@@ -143,11 +147,12 @@ printBoard board = do
 
 bug2char :: Bug -> Char
 bug2char Ant         = 'A'
-bug2char Grasshopper = 'G'
-bug2char Spider      = 'S'
 bug2char Beetle      = 'B'
-bug2char Queen       = 'Q'
+bug2char Grasshopper = 'G'
 bug2char Ladybug     = 'L'
+bug2char Mosquito    = 'M'
+bug2char Queen       = 'Q'
+bug2char Spider      = 'S'
 
 player2color :: Player -> Color
 player2color P1 = Magenta

@@ -30,9 +30,8 @@ data HiveError
   | SpiderBacktrack
   | BeetleMoveLength
   | QueenMoveLength
-  | LadybugMoveLength
-  | LadybugMoveUp
-  | LadybugMoveDown
+  | LadybugMove
+  | MosquitoMove [Bug]
   deriving Show
 
 displayHiveError :: HiveError -> Text
@@ -57,6 +56,5 @@ displayHiveError = \case
   SpiderBacktrack       -> "Spider may not backtrack"
   BeetleMoveLength      -> "Beetle may only move one cell"
   QueenMoveLength       -> "Queen may only move one cell"
-  LadybugMoveLength     -> "Ladybug must move exactly three cells"
-  LadybugMoveUp         -> "Ladybug must move on the top of the hive for its first two cells"
-  LadybugMoveDown       -> "Ladybug may not end its movement on top of the hive"
+  LadybugMove           -> "Ladybug must move three spaces: two on top of the hive, then one down"
+  MosquitoMove bugs     -> "Mosquito may only move as one of " ++ show bugs

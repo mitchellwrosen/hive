@@ -39,10 +39,11 @@ hiveAction x = liftF (HiveAction x identity)
 runHive
   :: Monad m
   => UseLadybug
+  -> UseMosquito
   -> (Game -> Hive m ()) -- Player 1
   -> (Game -> Hive m ()) -- Player 2
   -> m (Maybe Winner)    -- Nothing if some player exited early
-runHive ladybug p1 p2 =
+runHive ladybug mosquito p1 p2 =
   runHive'
     game
     (p1 game)
@@ -53,7 +54,7 @@ runHive ladybug p1 p2 =
         _ -> error "impossible")
  where
   game :: Game
-  game = initialGame ladybug
+  game = initialGame ladybug mosquito
 
 runHive'
   :: forall m.

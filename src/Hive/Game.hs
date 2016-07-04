@@ -76,10 +76,10 @@ data GameState
   deriving (Eq, Show, Generic, FromJSON, ToJSON)
 
 
-initialGame :: UseLadybug -> Game
-initialGame ladybug = Game initialBoard P1 bugs bugs 0 0
+initialGame :: UseLadybug -> UseMosquito -> Game
+initialGame ladybug mosquito = Game initialBoard P1 bugs bugs 0 0
  where
-  bugs = initialBugs ladybug
+  bugs = initialBugs ladybug mosquito
 
 -- | Is the game over?
 gameOver :: GameState -> Bool
@@ -124,13 +124,7 @@ stepGame act game =
       mapM_ (\(i,j) -> checkAdjacent i j board) (adjacentPairs path)
 
       -- Check bug-specific movement rules
-      case bug of
-        Ant         -> validateAntMove src tl board
-        Beetle      -> validateBeetleMove tl
-        Grasshopper -> validateGrasshopperMove src tl board
-        Ladybug     -> validateLadybugMove tl board
-        Queen       -> validateQueenMove src tl board
-        Spider      -> validateSpiderMove src tl board
+      validateMove bug src tl board
 
       let dst :: BoardIndex
           dst = NonEmpty.last tl
@@ -381,6 +375,22 @@ checkFreedomToMoveRule i0 is0 board =
     when (length (Set.intersection ns ms) > 1) $
       throwError (FreedomToMoveRule n m)
 
+validateMove
+  :: MonadError HiveError m
+  => Bug
+  -> BoardIndex
+  -> NonEmpty BoardIndex
+  -> Board
+  -> m ()
+validateMove bug i is board =
+  case bug of
+    Ant         -> validateAntMove i is board
+    Beetle      -> validateBeetleMove is
+    Grasshopper -> validateGrasshopperMove i is board
+    Ladybug     -> validateLadybugMove is board
+    Mosquito    -> validateMosquitoMove i is board
+    Queen       -> validateQueenMove i is board
+    Spider      -> validateSpiderMove i is board
 
 -- An ant slides around any number of cells.
 validateAntMove
@@ -447,13 +457,46 @@ validateLadybugMove
 validateLadybugMove is board =
   case is of
     i1 :| [i2,i3] -> do
-      when (cellIsUnoccupied board i1) $
-        throwError LadybugMoveUp
-      when (cellIsUnoccupied board i2) $
-        throwError LadybugMoveUp
-      when (cellIsOccupied board i3) $
-        throwError LadybugMoveDown
-    _ -> throwError LadybugMoveLength
+      when (or [ cellIsUnoccupied board i1
+               , cellIsUnoccupied board i2
+               , cellIsOccupied board i3
+               ]) $
+        throwError LadybugMove
+    _ -> throwError LadybugMove
+
+-- A mosquito may move as any of the bugs it's adjacent to, unless it's on top
+-- of the hive, in which case it moves as a beetle until it comes back down.
+validateMosquitoMove
+  :: MonadError HiveError m
+  => BoardIndex
+  -> NonEmpty BoardIndex
+  -> Board
+  -> m ()
+validateMosquitoMove i is board
+  | length (board ! i) > 1 =
+      -- Just copy/paste the beetle's (short) validation code here, because we
+      -- throw a different error
+      when (length is /= 1) $
+        throwError (MosquitoMove [Beetle])
+  | otherwise = do
+      let bugs :: [Bug]
+          bugs = ordNub (map f (occupiedNeighbors board i))
+           where
+            f :: (BoardIndex, NonEmpty Tile) -> Bug
+            f = view tileBug . NonEmpty.head . snd
+
+      -- Mosquito may move as any one of its neighbors, so just try
+      -- them in turn until none remain. Be careful not to recurse in the case
+      -- that this Mosquito is touching another Mosquito - the adjacent Mosquito
+      -- effectively has no movement capabilities in this case.
+      fix
+        (\loop -> \case
+          [] -> throwError (MosquitoMove bugs)
+          b:bs ->
+            case b of
+              Mosquito -> loop bs
+              _ -> catchError (validateMove b i is board) (\_ -> loop bs))
+        bugs
 
 -- A queen slides one cell.
 validateQueenMove
