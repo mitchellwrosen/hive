@@ -3,8 +3,8 @@
 module Data.HexBoard
     ( HexBoard(..)
     , BoardIndex
-    , boardTiles
     , boardParity
+    , boardTiles
     , boardWidth
     , boardHeight
     , boardNeighbors

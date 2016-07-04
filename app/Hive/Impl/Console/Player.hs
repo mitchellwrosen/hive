@@ -1,5 +1,6 @@
 module Hive.Impl.Console.Player
     ( consolePlayer
+    , consoleCompletion
     ) where
 
 import Mitchell.Prelude
@@ -7,13 +8,12 @@ import Mitchell.Prelude
 import Hive
 
 import Control.Lens
-import Prelude (String, read) -- TODO: Text
+import Prelude                  (String, read)
 import System.Console.ANSI
 import System.Console.Haskeline
 import Text.Megaparsec
 
 import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.Text          as Text
 import qualified Data.Vector        as Vector
 
 consolePlayer :: String -> Game -> Hive (InputT IO) ()
@@ -27,9 +27,10 @@ consolePlayer name game0 = do
   loop game = do
     io $ do
       putStrLn ""
-      printBoard (game^.gameBoard)
+      printBoard board
 
-    let prompt = colored (player2color (game^.gamePlayer)) (name ++ "> ")
+    let prompt = colored (player2color player) (name ++ "> ")
+
     lift (getInputLine prompt) >>= \case
       Nothing -> do
         putStrLn (cs (colored Red "Parse error."))
@@ -44,10 +45,32 @@ consolePlayer name game0 = do
 
             case result of
               Left err -> do
-                putStrLn (cs (colored Red ("Invalid move! " ++ Text.unpack err)))
+                putStrLn (cs (colored Red (cs (displayHiveError err))))
                 loop game
               Right (GameOver winner)  -> io (print winner)
               Right (GameActive game') -> loop game'
+
+   where
+    board = view gameBoard game
+    player = view gamePlayer game
+
+consoleCompletion :: Monad m => CompletionFunc m
+consoleCompletion =
+  completeWord Nothing [' ']
+    (go [ ("ant",         ["ant"])
+        , ("beetle",      ["beetle"])
+        , ("grasshopper", ["grasshopper"])
+        , ("move",        ["move"])
+        , ("place",       ["place"])
+        , ("queen",       ["queen"])
+        , ("spider",      ["spider"])
+        ])
+ where
+  go [] _ = pure []
+  go ((w,w'):ws) s
+    | s `isPrefixOf` w = pure (map simpleCompletion w')
+    | otherwise = go ws s
+
 
 actionParser :: Parsec String Action
 actionParser = placeParser <|> moveParser
@@ -92,7 +115,7 @@ printBoard board = do
 
   Vector.imapM_
     printTwoRows
-    (Vector.map (split . Vector.toList . Vector.map cellToString) (board^.boardTiles))
+    (Vector.map (split . Vector.toList . Vector.map cellToString) (view boardTiles board))
  where
   column_nums :: String
   column_nums =
@@ -101,7 +124,7 @@ printBoard board = do
 
   printTwoRows :: Int -> ([String], [String]) -> IO ()
   printTwoRows row (es, os)
-    | board^.boardParity == Even = do
+    | view boardParity board == Even = do
         unless (null os) $
           putStrLn (cs (row_num ++ spaceFirst os))
         unless (null es) $

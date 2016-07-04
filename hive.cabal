@@ -40,6 +40,7 @@ library
     , vector
   exposed-modules:
       Data.HexBoard
+      Hive
       Hive.Action
       Hive.Board
       Hive.Bug

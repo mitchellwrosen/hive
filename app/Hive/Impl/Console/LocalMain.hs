@@ -3,13 +3,14 @@ module Main where
 import Mitchell.Prelude
 
 import Hive
-import Hive.Impl.Console.Player (consolePlayer)
+import Hive.Impl.Console.Player
 
 import System.Console.Haskeline
 
 main :: IO ()
 main =
-  runInputT defaultSettings
-    (runHive (consolePlayer "Player 1")
-             (consolePlayer "Player 2"))
+  runInputT (setComplete consoleCompletion defaultSettings) game
     >>= print
+
+game :: InputT IO (Maybe Winner)
+game = runHive (consolePlayer "Player 1") (consolePlayer "Player 2")

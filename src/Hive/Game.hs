@@ -1,7 +1,8 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Hive.Game
-  ( Game(..)
+  ( -- * Game types and lenses
+    Game
   , gameBoard
   , gamePlayer
   , gameBugs
@@ -9,9 +10,10 @@ module Hive.Game
   , gamePlaced
   , gamePlaced'
   , GameState(..)
+    -- * Game API
   , initialGame
-  , gameOver
-  , gameConcerns
+  -- , gameOver
+  -- , gameConcerns
   , stepGame
   ) where
 
@@ -33,7 +35,6 @@ import qualified Data.List          as List
 import qualified Data.List.Extra    as List
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Set           as Set
-import qualified Data.Vector        as Vector
 
 
 data Game = Game
@@ -66,7 +67,6 @@ instance FromJSON Game where
       <*> o .: "placed"
       <*> o .: "placed'"
 
-
 -- | The state of a game: it's over, or it's active.
 data GameState
   = GameOver Winner
@@ -75,20 +75,7 @@ data GameState
 
 
 initialGame :: Game
-initialGame = Game board P1 bugs bugs 0 0
- where
-  -- One empty tile stack
-  board :: Board
-  board = HexBoard (Vector.singleton (Vector.singleton [])) Even
-
-  bugs :: [Bug]
-  bugs =
-    [ Ant, Ant, Ant
-    , Grasshopper, Grasshopper, Grasshopper
-    , Spider, Spider
-    , Beetle, Beetle
-    , Queen
-    ]
+initialGame = Game initialBoard P1 initialBugs initialBugs 0 0
 
 -- | Is the game over?
 gameOver :: GameState -> Bool
@@ -112,7 +99,8 @@ stepGame act game =
       checkQueenByTurn4 bug game
 
       cell <- checkValidIndex idx board
-      checkCellUnoccupied cell
+      unless (null cell) $
+        throwError PlaceOnOccupiedCell
 
       checkValidAdjacency idx game
 
@@ -155,7 +143,9 @@ stepGame act game =
   bugs :: [Bug]
   bugs = view gameBugs game
 
--- | Update a game by placing a bug. Assumes that the placement is valid.
+-- @placeBug bug idx game@ places bug belonging to the current player at idx.
+--
+-- Precondition: This placement is valid per the rules of the game.
 placeBug :: Bug -> BoardIndex -> Game -> GameState
 placeBug bug idx game =
   case boardWinner idx board' of
@@ -196,6 +186,10 @@ placeBug bug idx game =
     . set gamePlaced (view gamePlaced' game)
     . set gamePlaced' (view gamePlaced game + 1)
 
+-- @moveBug src dst game@ moves a bug from src to dst.
+--
+-- Precondition: There is indeed a bug at src, and moving it to dst is valid per
+-- the rules of the game.
 moveBug :: BoardIndex -> BoardIndex -> Game -> GameState
 moveBug src dst game =
   case boardWinner dst board' of
@@ -236,7 +230,7 @@ moveBug src dst game =
 checkHasBug :: Bug -> [Bug] -> Either HiveError ()
 checkHasBug bug bugs =
   when (bug `notElem` bugs) $
-    throwError NoSuchBug
+    throwError (NoSuchBug bug bugs)
 
 -- Queen must be placed by move 4. That is, we may not place a non-queen
 -- on turn 4 with a queen in the supply.
@@ -255,13 +249,8 @@ checkQueenByTurn4 bug game =
 checkValidIndex :: BoardIndex -> Board -> Either HiveError Cell
 checkValidIndex idx board =
   case preview (ix idx) board of
-    Nothing   -> throwError IndexOutOfBounds
+    Nothing   -> throwError (IndexOutOfBounds idx)
     Just cell -> pure cell
-
-checkCellUnoccupied :: Cell -> Either HiveError ()
-checkCellUnoccupied = \case
-  _:_ -> throwError CellOccupied
-  _   -> pure ()
 
 -- Depending on what turn it is, check that the placement's neighbors are of
 -- valid colors.
@@ -285,7 +274,7 @@ checkValidAdjacency idx game =
         throwError OneHiveRule
 
       when has_opponent_neighbor $
-        throwError PlacementNextToOpponent
+        throwError PlaceNextToOpponent
  where
   placed = view gamePlaced game + view gamePlaced' game
 
@@ -372,20 +361,20 @@ checkFreedomToMoveRule
 checkFreedomToMoveRule i0 is0 board =
   forM_ (adjacentPairs (i0 : NonEmpty.toList is0)) $ \(i,j) -> do
     when (cellIsOccupied board j) $
-      throwError SlideToOccupiedCell
+      throwError (SlideToOccupiedCell j)
 
     checkPieceCanSlide
-      (occupiedNeighborIndices i board)
-      (occupiedNeighborIndices j board)
+      (i, occupiedNeighborIndices i board)
+      (j, occupiedNeighborIndices j board)
  where
   checkPieceCanSlide
     :: MonadError HiveError m
-    => Set BoardIndex -- Source occupied neighbors
-    -> Set BoardIndex -- Destination occupied neighbors
+    => (BoardIndex, Set BoardIndex) -- Source and its occupied neighbors
+    -> (BoardIndex, Set BoardIndex) -- Destination and its occupied neighbors
     -> m ()
-  checkPieceCanSlide ns ms =
+  checkPieceCanSlide (n,ns) (m,ms) =
     when (length (Set.intersection ns ms) > 1) $
-      throwError SlideToNonAdjacentCell
+      throwError (FreedomToMoveRule n m)
 
 -- An ant slides around any number of cells.
 validateAntMove

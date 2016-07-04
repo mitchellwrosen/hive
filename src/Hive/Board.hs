@@ -1,11 +1,18 @@
 module Hive.Board
   ( Board
+  , BoardIndex
+  , initialBoard
+  , boardParity
+  , boardTiles
+  , boardWidth
+  , boardHeight
+  , Parity(..)
+  , Adjacency(..)
   , (!)
   , boardWinner
   , growBoard
   , occupiedNeighbors
   , occupiedNeighborIndices
-  , pieceCanSlide -- TODO remove
   , cellsAreAdjacent
   , cellIsOccupied
   , cellIsUnoccupied
@@ -26,6 +33,10 @@ import qualified Data.Vector as Vector
 
 
 type Board = HexBoard Cell
+
+
+initialBoard :: Board
+initialBoard = HexBoard (pure (pure [])) Even
 
 (!) :: Board -> BoardIndex -> Cell
 board ! i =
@@ -103,31 +114,6 @@ occupiedNeighbors board i = do
 occupiedNeighborIndices :: BoardIndex -> Board -> Set BoardIndex
 occupiedNeighborIndices i board =
   Set.fromList (map fst (occupiedNeighbors board i))
-
--- | A piece can slide from one cell to another if:
---
---     - The destination is unoccupied.
---     - The source and destination share precicely one occupied neighbor.
---
--- Sharing zero occupied neighbors means they are too far apart. Sharing two
--- occupied neighbors means there's too small a gap to squeeze through.
---
--- Precondition: list of indices contains at least one element.
-pieceCanSlide
-  :: BoardIndex
-  -> [BoardIndex]
-  -> Board
-  -> Bool
-pieceCanSlide i0 is board =
-  -- No cells after the first are occupied.
-  all (cellIsUnoccupied board) is &&
-  -- Each two cells along the path share exactly one occupied neighbor.
-  go (map (Set.fromList . occupiedNeighbors board) (i0:is))
- where
-  go :: [Set (BoardIndex, Cell)] -> Bool
-  go [] = True -- should never be reached
-  go [_] = True
-  go (s0:s1:ss) = length (Set.intersection s0 s1) == 1 && go (s1:ss)
 
 -- | Two cells are adjacent if one of them is a neighbor of the other.
 cellsAreAdjacent :: Board -> BoardIndex -> BoardIndex -> Bool
