@@ -45,6 +45,7 @@ library
       Hive.Board
       Hive.Bug
       Hive.Error
+      Hive.Expansions
       Hive.Game
       Hive.Monad
       Hive.Player

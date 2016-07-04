@@ -5,6 +5,8 @@ module Hive.Bug
 
 import Mitchell.Prelude
 
+import Hive.Expansions
+
 import Data.Aeson
 
 
@@ -12,16 +14,18 @@ import Data.Aeson
 data Bug
   = Ant
   | Grasshopper
+  | Ladybug
   | Spider
   | Beetle
   | Queen
   deriving (Eq, Generic, Ord, Show, FromJSON, ToJSON)
 
-initialBugs :: [Bug]
-initialBugs =
-  [ Ant, Ant, Ant
-  , Grasshopper, Grasshopper, Grasshopper
-  , Spider, Spider
-  , Beetle, Beetle
-  , Queen
+initialBugs :: UseLadybug -> [Bug]
+initialBugs ladybug = concat
+  [ replicate 3 Ant
+  , replicate 3 Grasshopper
+  , replicate 2 Spider
+  , replicate 2 Beetle
+  , [ Ladybug | ladybug ]
+  , [ Queen ]
   ]

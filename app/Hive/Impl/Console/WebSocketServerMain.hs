@@ -23,40 +23,41 @@ import qualified Data.Aeson         as Aeson
 import qualified Network.HTTP.Types as HTTP
 
 
-type RoomMap = Map ByteString Room
-
-data Room = Room
-  { roomPlayer1 :: MVar ThreadId
-  , roomPlayer2 :: MVar ThreadId
-  , roomGame    :: TVar GameState
-  , roomLock    :: MVar ()
-  }
+-- type RoomMap = Map ByteString Room
+--
+-- data Room = Room
+--   { roomPlayer1 :: MVar ThreadId
+--   , roomPlayer2 :: MVar ThreadId
+--   , roomGame    :: TVar GameState
+--   , roomLock    :: MVar ()
+--   }
 
 -- data Client = Client
 --   { clientName   :: ByteString
 --   , clientThread :: ThreadId
 --   , clientChan   ::
 
-data Message
-  = ActionMessage ActionMessage
-  | ChatMessage ChatMessage
+-- data Message
+--   = ActionMessage ActionMessage
+--   | ChatMessage ChatMessage
+--
+-- data ActionMessage = ActionMsg Action
+-- data ChatMessage = ChatMsg Text
 
-data ActionMessage = ActionMsg Action
-data ChatMessage = ChatMsg Text
+main = undefined
 
-
-main :: IO ()
-main = do
-  p1   <- newEmptyMVar
-  p2   <- newEmptyMVar
-  game <- newTVarIO (GameActive initialGame)
-  lock <- newEmptyMVar
-  room <- newIORef (Room p1 p2 game lock)
-
-  runLoggingT (main' room) putStrLn
-
-main' :: (MonadLog Text m, MonadIO m, MonadBaseUnlift IO m) => IORef Room -> m ()
-main' = undefined
+-- main :: IO ()
+-- main = do
+--   p1   <- newEmptyMVar
+--   p2   <- newEmptyMVar
+--   game <- newTVarIO (GameActive initialGame)
+--   lock <- newEmptyMVar
+--   room <- newIORef (Room p1 p2 game lock)
+--
+--   runLoggingT (main' room) putStrLn
+--
+-- main' :: (MonadLog Text m, MonadIO m, MonadBaseUnlift IO m) => IORef Room -> m ()
+-- main' = undefined
 -- main' room = do
 --   logMessage ("Binding server to port " ++ show port)
 --   Wai.Warp.run port (Wai.WebSockets.websocketsOr opts (wsApp room) httpApp)

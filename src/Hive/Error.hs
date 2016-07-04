@@ -23,21 +23,16 @@ data HiveError
   | NonAdjacentMove BoardIndex BoardIndex
   | SlideToOccupiedCell BoardIndex
   | GrasshopperMoveLength
-  -- ^ A < length 2 Grasshopper move was attempted
   | HopOverUnoccupiedCell
-  -- ^ A hop over an unoccupied cell was attempted
   | HopToOccupiedCell
-  -- ^ A hop to an occupied cell was attempted
   | HopInCrookedLine
-  -- ^ A hop in a non-straight line was attempted
   | SpiderMoveLength
-  -- ^ A non-length-3 Spider move was attempted
   | SpiderBacktrack
-  -- ^ A backtracking Spider move was attempted
   | BeetleMoveLength
-  -- ^ A non-length-1 Beetle move was attempted
   | QueenMoveLength
-  -- ^ A non-length-1 Queen move was attempted
+  | LadybugMoveLength
+  | LadybugMoveUp
+  | LadybugMoveDown
   deriving Show
 
 displayHiveError :: HiveError -> Text
@@ -62,3 +57,6 @@ displayHiveError = \case
   SpiderBacktrack       -> "Spider may not backtrack"
   BeetleMoveLength      -> "Beetle may only move one cell"
   QueenMoveLength       -> "Queen may only move one cell"
+  LadybugMoveLength     -> "Ladybug must move exactly three cells"
+  LadybugMoveUp         -> "Ladybug must move on the top of the hive for its first two cells"
+  LadybugMoveDown       -> "Ladybug may not end its movement on top of the hive"

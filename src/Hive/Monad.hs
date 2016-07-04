@@ -10,6 +10,7 @@ import Mitchell.Prelude
 
 import Hive.Action
 import Hive.Error
+import Hive.Expansions
 import Hive.Game
 import Hive.Player
 
@@ -37,18 +38,22 @@ hiveAction x = liftF (HiveAction x identity)
 -- | Run a two-player Hive game.
 runHive
   :: Monad m
-  => (Game -> Hive m ()) -- Player 1
+  => UseLadybug
+  -> (Game -> Hive m ()) -- Player 1
   -> (Game -> Hive m ()) -- Player 2
   -> m (Maybe Winner)    -- Nothing if some player exited early
-runHive p1 p2 =
+runHive ladybug p1 p2 =
   runHive'
-    initialGame
-    (p1 initialGame)
+    game
+    (p1 game)
     -- There's no way for the game to have a winner after just 1 turn,
     -- so this partial pattern match is ok.
     (\case
         GameActive game' -> p2 game'
         _ -> error "impossible")
+ where
+  game :: Game
+  game = initialGame ladybug
 
 runHive'
   :: forall m.

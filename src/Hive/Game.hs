@@ -24,12 +24,14 @@ import Hive.Action
 import Hive.Board
 import Hive.Bug
 import Hive.Error
+import Hive.Expansions
 import Hive.Player
 import Hive.Tile
 import Utils         (adjacentPairs)
 
 import Control.Lens
 import Data.Aeson
+import Data.List.NonEmpty (NonEmpty(..))
 
 import qualified Data.List          as List
 import qualified Data.List.Extra    as List
@@ -74,8 +76,10 @@ data GameState
   deriving (Eq, Show, Generic, FromJSON, ToJSON)
 
 
-initialGame :: Game
-initialGame = Game initialBoard P1 initialBugs initialBugs 0 0
+initialGame :: UseLadybug -> Game
+initialGame ladybug = Game initialBoard P1 bugs bugs 0 0
+ where
+  bugs = initialBugs ladybug
 
 -- | Is the game over?
 gameOver :: GameState -> Bool
@@ -122,10 +126,11 @@ stepGame act game =
       -- Check bug-specific movement rules
       case bug of
         Ant         -> validateAntMove src tl board
-        Grasshopper -> validateGrasshopperMove src tl board
-        Spider      -> validateSpiderMove src tl board
         Beetle      -> validateBeetleMove tl
+        Grasshopper -> validateGrasshopperMove src tl board
+        Ladybug     -> validateLadybugMove tl board
         Queen       -> validateQueenMove src tl board
+        Spider      -> validateSpiderMove src tl board
 
       let dst :: BoardIndex
           dst = NonEmpty.last tl
@@ -376,6 +381,7 @@ checkFreedomToMoveRule i0 is0 board =
     when (length (Set.intersection ns ms) > 1) $
       throwError (FreedomToMoveRule n m)
 
+
 -- An ant slides around any number of cells.
 validateAntMove
   :: MonadError HiveError m
@@ -386,6 +392,15 @@ validateAntMove
 validateAntMove i is board =
   checkFreedomToMoveRule i is board
 
+-- A beetle moves to an adjacent tile.
+validateBeetleMove
+  :: MonadError HiveError m
+  => NonEmpty BoardIndex
+  -> m ()
+validateBeetleMove is = do
+  when (length is /= 1) $
+    throwError BeetleMoveLength
+
 -- A grasshopper hops over one or more occupied cells in a straight line
 validateGrasshopperMove
   :: forall m.
@@ -395,7 +410,7 @@ validateGrasshopperMove
   -> Board
   -> m ()
 validateGrasshopperMove i is board = do
-  when (length is == 1) $
+  when (length is < 2) $
     throwError GrasshopperMoveLength
 
   -- All cells along the path except for the last must be occupied
@@ -422,6 +437,37 @@ validateGrasshopperMove i is board = do
     checkFormsStraightLine (j1:j2:js)
   checkFormsStraightLine _ = pure () -- should only be hit with 2 element list
 
+-- A ladybug moves three cells; the first two are on top of the hive, and the
+-- third comes back down.
+validateLadybugMove
+  :: MonadError HiveError m
+  => NonEmpty BoardIndex
+  -> Board
+  -> m ()
+validateLadybugMove is board =
+  case is of
+    i1 :| [i2,i3] -> do
+      when (cellIsUnoccupied board i1) $
+        throwError LadybugMoveUp
+      when (cellIsUnoccupied board i2) $
+        throwError LadybugMoveUp
+      when (cellIsOccupied board i3) $
+        throwError LadybugMoveDown
+    _ -> throwError LadybugMoveLength
+
+-- A queen slides one cell.
+validateQueenMove
+  :: MonadError HiveError m
+  => BoardIndex
+  -> NonEmpty BoardIndex
+  -> Board
+  -> m ()
+validateQueenMove i is board = do
+  when (length is /= 1) $
+    throwError QueenMoveLength
+
+  checkFreedomToMoveRule i is board
+
 -- A spider slides across three cells and cannot backtrack
 validateSpiderMove
   :: MonadError HiveError m
@@ -439,25 +485,3 @@ validateSpiderMove i is board = do
     throwError SpiderBacktrack
  where
   js = i : NonEmpty.toList is
-
--- A beetle moves to an adjacent tile.
-validateBeetleMove
-  :: MonadError HiveError m
-  => NonEmpty BoardIndex
-  -> m ()
-validateBeetleMove is = do
-  when (length is /= 1) $
-    throwError BeetleMoveLength
-
--- A queen slides one cell.
-validateQueenMove
-  :: MonadError HiveError m
-  => BoardIndex
-  -> NonEmpty BoardIndex
-  -> Board
-  -> m ()
-validateQueenMove i is board = do
-  when (length is /= 1) $
-    throwError QueenMoveLength
-
-  checkFreedomToMoveRule i is board

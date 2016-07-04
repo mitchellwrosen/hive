@@ -147,6 +147,7 @@ bug2char Grasshopper = 'G'
 bug2char Spider      = 'S'
 bug2char Beetle      = 'B'
 bug2char Queen       = 'Q'
+bug2char Ladybug     = 'L'
 
 player2color :: Player -> Color
 player2color P1 = Magenta
