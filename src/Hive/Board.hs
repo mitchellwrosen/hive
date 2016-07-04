@@ -1,4 +1,15 @@
-module Hive.Board where
+module Hive.Board
+  ( Board
+  , (!)
+  , boardWinner
+  , growBoard
+  , occupiedNeighbors
+  , occupiedNeighborIndices
+  , pieceCanSlide -- TODO remove
+  , cellsAreAdjacent
+  , cellIsOccupied
+  , cellIsUnoccupied
+  ) where
 
 import Mitchell.Prelude
 
@@ -13,23 +24,14 @@ import Data.Vector  (Vector)
 import qualified Data.Set    as Set
 import qualified Data.Vector as Vector
 
+
 type Board = HexBoard Cell
 
--- Given an index that presumably just had a piece placed on it (or moved
--- to), possibly grow the board if that index is on an edge of the board.
-growBoard :: BoardIndex -> Board -> Board
-growBoard (row, col) board =
-  let
-    w = boardWidth board
-    h = boardHeight board
-
-    f0, f1, f2, f3 :: Board -> Board
-    f0 = if row == 0   then prependRow else identity
-    f1 = if row == h-1 then appendRow  else identity
-    f2 = if col == 0   then prependCol else identity
-    f3 = if col == w-1 then appendCol  else identity
-  in
-    f0 (f1 (f2 (f3 board)))
+(!) :: Board -> BoardIndex -> Cell
+board ! i =
+  case preview (ix i) board of
+    Nothing -> error ("Hive.Board.(!): index " ++ show i ++ " out of bounds")
+    Just c  -> c
 
 -- | Get the winner of this board, if any. Takes an index representing the last
 -- index that a piece was either moved to or placed at as an optimization, since
@@ -52,6 +54,22 @@ boardWinner i0 board =
       (True,    _) -> Just (Just P2)
       (   _, True) -> Just (Just P1)
       _            -> Nothing
+
+-- Given an index that presumably just had a piece placed on it (or moved
+-- to), possibly grow the board if that index is on an edge of the board.
+growBoard :: BoardIndex -> Board -> Board
+growBoard (row, col) board =
+  let
+    w = boardWidth board
+    h = boardHeight board
+
+    f0, f1, f2, f3 :: Board -> Board
+    f0 = if row == 0   then prependRow else identity
+    f1 = if row == h-1 then appendRow  else identity
+    f2 = if col == 0   then prependCol else identity
+    f3 = if col == w-1 then appendCol  else identity
+  in
+    f0 (f1 (f2 (f3 board)))
 
 prependRow :: Board -> Board
 prependRow board = over boardTiles f board
@@ -82,6 +100,10 @@ occupiedNeighbors board i = do
   guard (not (null (snd n)))
   pure n
 
+occupiedNeighborIndices :: BoardIndex -> Board -> Set BoardIndex
+occupiedNeighborIndices i board =
+  Set.fromList (map fst (occupiedNeighbors board i))
+
 -- | A piece can slide from one cell to another if:
 --
 --     - The destination is unoccupied.
@@ -91,7 +113,11 @@ occupiedNeighbors board i = do
 -- occupied neighbors means there's too small a gap to squeeze through.
 --
 -- Precondition: list of indices contains at least one element.
-pieceCanSlide :: BoardIndex -> [BoardIndex] -> Board -> Bool
+pieceCanSlide
+  :: BoardIndex
+  -> [BoardIndex]
+  -> Board
+  -> Bool
 pieceCanSlide i0 is board =
   -- No cells after the first are occupied.
   all (cellIsUnoccupied board) is &&

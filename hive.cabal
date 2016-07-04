@@ -40,13 +40,15 @@ library
     , vector
   exposed-modules:
       Data.HexBoard
-      Hive
+      Hive.Action
       Hive.Board
       Hive.Bug
+      Hive.Error
       Hive.Game
       Hive.Monad
       Hive.Player
       Hive.Tile
+      Utils
   default-language: Haskell2010
 
 executable hive-local

@@ -1,6 +1,12 @@
 {-# LANGUAGE TemplateHaskell #-}
 
-module Hive.Tile where
+module Hive.Tile
+  ( Tile(..)
+  , tilePlayer
+  , tileBug
+  , Cell
+  , cellOwner
+  ) where
 
 import Mitchell.Prelude
 
@@ -29,11 +35,11 @@ instance FromJSON Tile where
       <$> o .: "player"
       <*> o .: "bug"
 
+
 -- A single cell is a stack of tiles, where the head of the list represents the
 -- top of the stack. This will only ever be a beetle or a mosquito, per the
 -- game rules.
 type Cell = [Tile]
-
 
 -- | Who "owns" this cell? (Meaning, whose tile is on top?)
 cellOwner :: Cell -> Maybe Player

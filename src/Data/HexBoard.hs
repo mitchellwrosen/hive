@@ -69,7 +69,7 @@ data HexBoard a = HexBoard
     } deriving (Eq, Show)
 makeLenses ''HexBoard
 
-type instance Index   (HexBoard a) = (Int, Int)
+type instance Index   (HexBoard a) = BoardIndex
 type instance IxValue (HexBoard a) = a
 
 instance Ixed (HexBoard a) where
@@ -113,8 +113,11 @@ boardNeighbors (row, col) board =
   left      = (row,   col-1)
   upleft    = (row-1, col-1)
 
+-- | Get the adjacency relationship between two indices.
+--
+-- Precondition: both indices are in bounds.
 boardAdjacency :: HexBoard a -> BoardIndex -> BoardIndex -> Maybe Adjacency
-boardAdjacency board (r0,c0) (r1,c1) =
+boardAdjacency board (r0,c0) (r1,c1) = do
   case tileParity c0 (view boardParity board) of
     Even
       | r0 == r1+1 && c0 == c1   -> Just Up

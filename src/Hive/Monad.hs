@@ -1,61 +1,24 @@
 module Hive.Monad
   ( Hive
-  , Action(..)
   , pattern MakePlacement
   , pattern MakeMove
   , hiveAction
+  , runHive
   ) where
 
 import Mitchell.Prelude
 
-import Data.HexBoard (BoardIndex)
-import Hive.Bug
+import Hive.Action
+import Hive.Error
 import Hive.Game
+import Hive.Player
 
-import Data.Aeson
 import Control.Monad.Trans.Free
-import Prelude                  (fail)
-
-import qualified Data.List.NonEmpty as NonEmpty
-
--- | A turn action. Either place a new bug or move an existing one.
-data Action
-  = Place Bug BoardIndex
-  | Move BoardIndex (NonEmpty BoardIndex)
-  deriving (Eq, Show)
-
-instance ToJSON Action where
-  toJSON = \case
-    Place bug idx -> object
-      [ "type"   .= String "Place"
-      , "bug"    .= toJSON bug
-      , "index"  .= toJSON idx
-      ]
-    Move idx idxs -> object
-      [ "type" .= String "Move"
-      , "path" .= toJSON (idx : NonEmpty.toList idxs)
-      ]
-
-instance FromJSON Action where
-  parseJSON = withObject "object" $ \o ->
-    o .: "type" >>=
-      withText "text" (\case
-        "Place" -> do
-          bug <- o .: "bug"
-          idx <- o .: "index"
-          pure (Place bug idx)
-
-        "Move" ->
-          o .: "path" >>= \case
-            (x:y:z) -> pure (Move x (NonEmpty.fromList (y:z)))
-            _ -> fail "expected 2 or more board indices"
-
-        _ -> fail "expected type Place or Move")
 
 
 -- | Underlying player action functor.
 data HiveF a
-  = HiveAction Action (Either Text GameState -> a)
+  = HiveAction Action (Either HiveError GameState -> a)
   deriving Functor
 
 pattern MakePlacement bug idx k = HiveAction (Place bug idx) k
@@ -67,5 +30,56 @@ pattern MakeMove i is k = HiveAction (Move i is) k
 type Hive m a = FreeT HiveF m a
 
 
-hiveAction :: Monad m => Action -> Hive m (Either Text GameState)
+hiveAction :: Monad m => Action -> Hive m (Either HiveError GameState)
 hiveAction x = liftF (HiveAction x identity)
+
+
+-- | Run a two-player Hive game.
+runHive
+  :: Monad m
+  => (Game -> Hive m ()) -- Player 1
+  -> (Game -> Hive m ()) -- Player 2
+  -> m (Maybe Winner)    -- Nothing if some player exited early
+runHive p1 p2 =
+  runHive'
+    initialGame
+    (p1 initialGame)
+    -- There's no way for the game to have a winner after just 1 turn,
+    -- so this partial pattern match is ok.
+    (\case
+        GameActive game' -> p2 game'
+        _ -> error "impossible")
+
+runHive'
+  :: forall m.
+     Monad m
+  => Game                     -- Game board
+  -> Hive m ()                -- Current player logic
+  -> (GameState -> Hive m ()) -- Next player logic, waiting for board resulting
+                              --   from current player's move
+  -> m (Maybe Winner)
+runHive' game cur_player next_player =
+  runFreeT cur_player >>= \case
+    Pure () -> pure Nothing
+    Free (MakePlacement bug idx k) -> go (Place bug idx) k
+    Free (MakeMove i is k)         -> go (Move i is) k
+ where
+  go :: Action -> (Either HiveError GameState -> Hive m ()) -> m (Maybe Winner)
+  go act k =
+    case stepGame act game of
+      Left err -> runHive' game (k (Left err)) next_player
+      Right game_state ->
+        case game_state of
+          GameActive game' ->
+            runHive' game' (next_player game_state) (k . Right)
+          GameOver winner -> do
+            stepPlayer (k (Right game_state))
+            stepPlayer (next_player game_state)
+            pure (Just winner)
+
+-- | Step a player action once, to cause side-effects. This is useful for
+-- informing a player that the game has ended, because we don't care about
+-- what the player's followup actions might be (in fact, anything besides
+-- 'Pure' indicates the player didn't properly respond to the 'GameOver'.
+stepPlayer :: Monad m => Hive m () -> m ()
+stepPlayer = void . runFreeT
