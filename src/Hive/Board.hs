@@ -25,7 +25,6 @@ import Hive.Bug
 import Hive.Player
 import Hive.Tile
 
-import Control.Lens
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Vector        (Vector)
 
@@ -84,24 +83,24 @@ growBoard (row, col) board =
     f0 (f1 (f2 (f3 board)))
 
 prependRow :: Board -> Board
-prependRow board = over boardTiles f board
+prependRow board = over boardTilesL f board
  where
   f :: Vector (Vector [Tile]) -> Vector (Vector [Tile])
   f = Vector.cons (Vector.replicate (boardWidth board) [])
 
 appendRow :: Board -> Board
-appendRow board = over boardTiles f board
+appendRow board = over boardTilesL f board
  where
   f :: Vector (Vector [Tile]) -> Vector (Vector [Tile])
   f = flip Vector.snoc (Vector.replicate (boardWidth board) [])
 
 prependCol :: Board -> Board
 prependCol =
-    over (boardTiles . traverse) (Vector.cons [])
-  . over boardParity flipParity
+    over (boardTilesL . traverse) (Vector.cons [])
+  . over boardParityL flipParity
 
 appendCol :: Board -> Board
-appendCol = over (boardTiles . traverse) (flip Vector.snoc [])
+appendCol = over (boardTilesL . traverse) (flip Vector.snoc [])
 
 -- | Get a list of neighbor cells that have at least one tile in them.
 occupiedNeighbors :: Board -> BoardIndex -> [(BoardIndex, NonEmpty Tile)]

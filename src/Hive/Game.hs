@@ -12,6 +12,7 @@ module Hive.Game
   , GameState(..)
     -- * Game API
   , initialGame
+  , initialGameState
   -- , gameOver
   -- , gameConcerns
   , stepGame
@@ -29,7 +30,6 @@ import Hive.Player
 import Hive.Tile
 import Utils         (adjacentPairs)
 
-import Control.Lens
 import Data.Aeson
 import Data.List.NonEmpty (NonEmpty(..))
 
@@ -40,23 +40,22 @@ import qualified Data.Set           as Set
 
 
 data Game = Game
-    { _gameBoard   :: !Board  -- ^ Game board
-    , _gamePlayer  :: !Player -- ^ Current player
-    , _gameBugs    :: ![Bug]  -- ^ Current player's bugs
-    , _gameBugs'   :: ![Bug]  -- ^ Next player's bugs
-    , _gamePlaced  :: !Int    -- ^ # of bugs current player has placed
-    , _gamePlaced' :: !Int    -- ^ # of bugs next player has placed
+    { gameBoard   :: !Board  -- ^ Game board
+    , gamePlayer  :: !Player -- ^ Current player
+    , gameBugs    :: ![Bug]  -- ^ Current player's bugs
+    , gameBugs'   :: ![Bug]  -- ^ Next player's bugs
+    , gamePlaced  :: !Int    -- ^ # of bugs current player has placed
+    , gamePlaced' :: !Int    -- ^ # of bugs next player has placed
     } deriving (Eq, Show)
-makeLenses ''Game
 
 instance ToJSON Game where
   toJSON game = object
-    [ ("board",   toJSON (view gameBoard   game))
-    , ("player",  toJSON (view gamePlayer  game))
-    , ("bugs",    toJSON (view gameBugs    game))
-    , ("bugs'",   toJSON (view gameBugs'   game))
-    , ("placed",  toJSON (view gamePlaced  game))
-    , ("placed'", toJSON (view gamePlaced' game))
+    [ ("board",   toJSON (gameBoard   game))
+    , ("player",  toJSON (gamePlayer  game))
+    , ("bugs",    toJSON (gameBugs    game))
+    , ("bugs'",   toJSON (gameBugs'   game))
+    , ("placed",  toJSON (gamePlaced  game))
+    , ("placed'", toJSON (gamePlaced' game))
     ]
 
 instance FromJSON Game where
@@ -68,6 +67,25 @@ instance FromJSON Game where
       <*> o .: "bugs'"
       <*> o .: "placed"
       <*> o .: "placed'"
+
+gameBoardL :: Lens' Game Board
+gameBoardL = lens gameBoard (\x y -> x { gameBoard = y })
+
+gamePlayerL :: Lens' Game Player
+gamePlayerL = lens gamePlayer (\x y -> x { gamePlayer = y })
+
+gameBugsL :: Lens' Game [Bug]
+gameBugsL = lens gameBugs (\x y -> x { gameBugs = y })
+
+gameBugsL' :: Lens' Game [Bug]
+gameBugsL' = lens gameBugs' (\x y -> x { gameBugs' = y })
+
+gamePlacedL :: Lens' Game Int
+gamePlacedL = lens gamePlaced (\x y -> x { gamePlaced = y })
+
+gamePlacedL' :: Lens' Game Int
+gamePlacedL' = lens gamePlaced' (\x y -> x { gamePlaced' = y })
+
 
 -- | The state of a game: it's over, or it's active.
 data GameState
@@ -81,6 +99,9 @@ initialGame ladybug mosquito = Game initialBoard P1 bugs bugs 0 0
  where
   bugs = initialBugs ladybug mosquito
 
+initialGameState :: UseLadybug -> UseMosquito -> GameState
+initialGameState ladybug mosquito = GameActive (initialGame ladybug mosquito)
+
 -- | Is the game over?
 gameOver :: GameState -> Bool
 gameOver (GameOver _) = True
@@ -90,7 +111,7 @@ gameOver _ = False
 gameConcerns :: Player -> GameState -> Bool
 gameConcerns _ (GameOver _) = True
 gameConcerns player (GameActive game) =
-  player == view gamePlayer game
+  player == gamePlayer game
 
 
 -- | Step the game forward with the given action. This implmenents all of the
@@ -134,13 +155,13 @@ stepGame act game =
       pure (moveBug src dst game)
  where
   board :: Board
-  board = view gameBoard game
+  board = gameBoard game
 
   player :: Player
-  player = view gamePlayer game
+  player = gamePlayer game
 
   bugs :: [Bug]
-  bugs = view gameBugs game
+  bugs = gameBugs game
 
 -- @placeBug bug idx game@ places bug belonging to the current player at idx.
 --
@@ -155,35 +176,35 @@ placeBug bug idx game =
   game' = updateGame game
 
   board' :: Board
-  board' = view gameBoard game'
+  board' = gameBoard game'
 
   player :: Player
-  player = view gamePlayer game
+  player = gamePlayer game
 
   updateGame :: Game -> Game
   updateGame =
     -- Possibly grow the board in all 4 directions to accomodate new
     -- viable cells to play at.
-      over gameBoard (growBoard idx)
+      over gameBoardL (growBoard idx)
 
     -- Poke the new tile into place. Partial pattern match on [] is okay
     -- because a placement onto an occupied cell should have been
     -- illegal.
-    . over (gameBoard . ix idx)
+    . over (gameBoardL . ix idx)
         (\[] -> [Tile player bug])
 
     -- Swap the current player
-    . over gamePlayer nextPlayer
+    . over gamePlayerL nextPlayer
 
     -- Swap gameBugs/gameBugs' and delete the placed bug from the
     -- current player's (the updated game's *next* player)
-    . set gameBugs (view gameBugs' game)
-    . set gameBugs' (List.delete bug (view gameBugs game))
+    . set gameBugsL (gameBugs' game)
+    . set gameBugsL' (List.delete bug (gameBugs game))
 
     -- Swap gamePlaced/gamePlaced' and increment the current player's
     -- (updated game's *next* player)
-    . set gamePlaced (view gamePlaced' game)
-    . set gamePlaced' (view gamePlaced game + 1)
+    . set gamePlacedL (gamePlaced' game)
+    . set gamePlacedL' (gamePlaced game + 1)
 
 -- @moveBug src dst game@ moves a bug from src to dst.
 --
@@ -195,35 +216,35 @@ moveBug src dst game =
     Nothing     -> GameActive game'
     Just winner -> GameOver winner
  where
-  (t:ts) = view gameBoard game ! src
+  (t:ts) = gameBoard game ! src
 
   game' :: Game
   game' = updateGame game
 
   board' :: Board
-  board' = view gameBoard game'
+  board' = gameBoard game'
 
   updateGame :: Game -> Game
   updateGame =
     -- Possibly grow the board in all 4 directions to accomodate new
     -- viable cells to play at.
     -- TODO: Possibly shrink board as well
-      over gameBoard (growBoard dst)
+      over gameBoardL (growBoard dst)
 
     -- Remove the bug from src and add it to dst
-    . over (gameBoard . ix dst) (t:)
-    . set (gameBoard . ix src) ts
+    . over (gameBoardL . ix dst) (t:)
+    . set (gameBoardL . ix src) ts
 
     -- Swap the current player
-    . over gamePlayer nextPlayer
+    . over gamePlayerL nextPlayer
 
     -- Swap gameBugs/gameBugs'
-    . set gameBugs (view gameBugs' game)
-    . set gameBugs' (view gameBugs game)
+    . set gameBugsL (gameBugs' game)
+    . set gameBugsL' (gameBugs game)
 
     -- Swap gamePlaced/gamePlaced'
-    . set gamePlaced (view gamePlaced' game)
-    . set gamePlaced' (view gamePlaced game)
+    . set gamePlacedL (gamePlaced' game)
+    . set gamePlacedL' (gamePlaced game)
 
 -- The current player must have the bug in supply.
 checkHasBug :: Bug -> [Bug] -> Either HiveError ()
@@ -241,8 +262,8 @@ checkQueenByTurn4 bug game =
             ]) $
     throwError NoQueenByTurn4
  where
-  bugs   = view gameBugs game
-  placed = view gamePlaced game
+  bugs   = gameBugs game
+  placed = gamePlaced game
 
 -- Index must be in bounds. Returns the cell at the index, if valid.
 checkValidIndex :: BoardIndex -> Board -> Either HiveError Cell
@@ -275,13 +296,13 @@ checkValidAdjacency idx game =
       when has_opponent_neighbor $
         throwError PlaceNextToOpponent
  where
-  placed = view gamePlaced game + view gamePlaced' game
+  placed = gamePlaced game + gamePlaced' game
 
   board :: Board
-  board = view gameBoard game
+  board = gameBoard game
 
   opponent :: Player
-  opponent = nextPlayer (view gamePlayer game)
+  opponent = nextPlayer (gamePlayer game)
 
   neighbors :: [Cell]
   neighbors = map snd (boardNeighbors idx board)
@@ -303,9 +324,9 @@ checkValidMoveSrc cell player =
   case cell of
     [] -> throwError MoveSrcNoTile
     (t:_) -> do
-      when (view tilePlayer t /= player) $
+      when (tilePlayer t /= player) $
         throwError MoveSrcOpponentTile
-      pure (view tileBug t)
+      pure (tileBug t)
 
 checkAdjacent
   :: MonadError HiveError m
@@ -358,7 +379,7 @@ checkFreedomToMoveRule
   -> Board               -- ^ Board
   -> m ()
 checkFreedomToMoveRule i0 is0 board =
-  forM_ (adjacentPairs (i0 : NonEmpty.toList is0)) $ \(i,j) -> do
+  for_ (adjacentPairs (i0 : NonEmpty.toList is0)) $ \(i,j) -> do
     when (cellIsOccupied board j) $
       throwError (SlideToOccupiedCell j)
 
@@ -483,7 +504,7 @@ validateMosquitoMove i is board
           bugs = ordNub (map f (occupiedNeighbors board i))
            where
             f :: (BoardIndex, NonEmpty Tile) -> Bug
-            f = view tileBug . NonEmpty.head . snd
+            f = tileBug . NonEmpty.head . snd
 
       -- Mosquito may move as any one of its neighbors, so just try
       -- them in turn until none remain. Be careful not to recurse in the case

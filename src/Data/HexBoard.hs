@@ -1,10 +1,8 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Data.HexBoard
     ( HexBoard(..)
     , BoardIndex
-    , boardParity
-    , boardTiles
+    , boardParityL
+    , boardTilesL
     , boardWidth
     , boardHeight
     , boardNeighbors
@@ -17,9 +15,9 @@ module Data.HexBoard
 
 import Mitchell.Prelude
 
-import Control.Lens
 import Data.Aeson
-import Data.Vector  (Vector)
+import Data.Vector         (Vector)
+import Lens.Micro.Internal (Index, Ixed, IxValue)
 
 import qualified Data.Graph  as Graph
 import qualified Data.Vector as Vector
@@ -64,21 +62,20 @@ type BoardIndex = (Int, Int)
 
 -- Invariant: boardWidth and boardHeight are always kept in sync with boardTiles
 data HexBoard a = HexBoard
-    { _boardTiles  :: Vector (Vector a)
-    , _boardParity :: Parity
+    { boardTiles  :: Vector (Vector a)
+    , boardParity :: Parity
     } deriving (Eq, Show)
-makeLenses ''HexBoard
 
 type instance Index   (HexBoard a) = BoardIndex
 type instance IxValue (HexBoard a) = a
 
 instance Ixed (HexBoard a) where
-    ix (row, col) = boardTiles . ix row . ix col
+    ix (row, col) = boardTilesL . ix row . ix col
 
 instance ToJSON a => ToJSON (HexBoard a) where
   toJSON board = object
-    [ ("tiles",  toJSON (view boardTiles  board))
-    , ("parity", toJSON (view boardParity board))
+    [ ("tiles",  toJSON (boardTiles  board))
+    , ("parity", toJSON (boardParity board))
     ]
 
 instance FromJSON a => FromJSON (HexBoard a) where
@@ -87,12 +84,17 @@ instance FromJSON a => FromJSON (HexBoard a) where
       <$> o .: "tiles"
       <*> o .: "parity"
 
+boardTilesL :: Lens' (HexBoard a) (Vector (Vector a))
+boardTilesL = lens boardTiles (\x y -> x { boardTiles = y })
+
+boardParityL :: Lens' (HexBoard a) Parity
+boardParityL = lens boardParity (\x y -> x { boardParity = y })
 
 boardWidth :: HexBoard a -> Int
-boardWidth = maybe 0 length . preview (boardTiles . ix 0)
+boardWidth = maybe 0 length . preview (boardTilesL . ix 0)
 
 boardHeight :: HexBoard a -> Int
-boardHeight = length . view boardTiles
+boardHeight = length . boardTiles
 
 boardNeighbors :: BoardIndex -> HexBoard a -> [(BoardIndex, a)]
 boardNeighbors (row, col) board =
@@ -100,7 +102,7 @@ boardNeighbors (row, col) board =
  where
   neighbor_idxs :: [BoardIndex]
   neighbor_idxs =
-    case tileParity col (board^.boardParity) of
+    case tileParity col (boardParity board) of
       Even -> [up, right, downright, down, downleft, left]
       Odd  -> [up, upright, right, down, left, upleft]
 
@@ -118,7 +120,7 @@ boardNeighbors (row, col) board =
 -- Precondition: both indices are in bounds.
 boardAdjacency :: HexBoard a -> BoardIndex -> BoardIndex -> Maybe Adjacency
 boardAdjacency board (r0,c0) (r1,c1) = do
-  case tileParity c0 (view boardParity board) of
+  case tileParity c0 (boardParity board) of
     Even
       | r0 == r1+1 && c0 == c1   -> Just Up
       | r0 == r1   && c0 == c1+1 -> Just UpLeft
@@ -153,7 +155,7 @@ boardNumSCCs hasElement board = length (Graph.stronglyConnComp adjacency_list)
   -- connected component API of Data.Graph. Since we don't care what the
   -- nodes' values are, just use unit. Key nodes by their unique indices.
   adjacency_list :: [((), BoardIndex, [BoardIndex])]
-  adjacency_list = Vector.ifoldl' f [] (board^.boardTiles)
+  adjacency_list = Vector.ifoldl' f [] (boardTiles board)
 
   -- First fold: over each row
   f :: [((), BoardIndex, [BoardIndex])]

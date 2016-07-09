@@ -32,8 +32,8 @@ library
     , text
     , containers
     , extra
-    , lens
     , free
+    , microlens
     , mtl
     , semigroups
     , transformers
@@ -129,6 +129,7 @@ executable hive-ws-server
     , hive
     , http-types
     , lens
+    , lifted-async
     , logging-effect
     , mmorph
     , monad-unlift

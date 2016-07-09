@@ -39,8 +39,8 @@ library:
   dependencies:
     - containers
     - extra
-    - lens
     - free
+    - microlens
     - mtl
     - semigroups
     - transformers
@@ -75,6 +75,7 @@ executables:
       - hive
       - http-types
       - lens
+      - lifted-async
       - logging-effect
       - mmorph
       - monad-unlift

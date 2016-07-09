@@ -1,9 +1,5 @@
-{-# LANGUAGE TemplateHaskell #-}
-
 module Hive.Tile
   ( Tile(..)
-  , tilePlayer
-  , tileBug
   , Cell
   , cellOwner
   ) where
@@ -14,19 +10,17 @@ import Hive.Bug
 import Hive.Player
 
 import Data.Aeson
-import Control.Lens
 
 -- | A tile is a Bug that belongs to a Player.
 data Tile = Tile
-    { _tilePlayer :: Player
-    , _tileBug    :: Bug
+    { tilePlayer :: Player
+    , tileBug    :: Bug
     } deriving (Eq, Ord, Show)
-makeLenses ''Tile
 
 instance ToJSON Tile where
   toJSON Tile{..} = object
-    [ ("player", toJSON _tilePlayer)
-    , ("bug",    toJSON _tileBug)
+    [ ("player", toJSON tilePlayer)
+    , ("bug",    toJSON tileBug)
     ]
 
 instance FromJSON Tile where
@@ -34,6 +28,9 @@ instance FromJSON Tile where
     Tile
       <$> o .: "player"
       <*> o .: "bug"
+
+tilePlayerL :: Lens' Tile Player
+tilePlayerL = lens tilePlayer (\x y -> x { tilePlayer = y })
 
 
 -- A single cell is a stack of tiles, where the head of the list represents the
@@ -43,4 +40,4 @@ type Cell = [Tile]
 
 -- | Who "owns" this cell? (Meaning, whose tile is on top?)
 cellOwner :: Cell -> Maybe Player
-cellOwner xs = xs ^? ix 0 . tilePlayer
+cellOwner = preview (ix 0 . tilePlayerL)
