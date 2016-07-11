@@ -1,0 +1,69 @@
+-- This file has been generated from package.yaml by hpack version 0.14.0.
+--
+-- see: https://github.com/sol/hpack
+
+name:                hive
+version:             0.1.0.0
+synopsis:            Hive
+homepage:            https://github.com/mitchellwrosen/hive#readme
+bug-reports:         https://github.com/mitchellwrosen/hive/issues
+license:             BSD3
+license-file:        LICENSE
+author:              Mitchell Rosen
+maintainer:          mitchellwrosen@gmail.com
+copyright:           2015-2016 Mitchell Rosen
+category:            Web
+build-type:          Simple
+cabal-version:       >= 1.10
+
+source-repository head
+  type: git
+  location: https://github.com/mitchellwrosen/hive
+
+library
+  hs-source-dirs:
+      src
+  default-extensions: DeriveAnyClass DeriveFunctor DeriveGeneric FlexibleContexts LambdaCase MultiParamTypeClasses MultiWayIf NoImplicitPrelude OverloadedStrings PatternSynonyms RankNTypes RecordWildCards ScopedTypeVariables TupleSections TypeFamilies ViewPatterns
+  ghc-options: -Wall
+  build-depends:
+      aeson
+    , base
+    , mitchell-prelude
+    , text
+    , containers
+    , extra
+    , free
+    , microlens
+    , mtl
+    , semigroups
+    , transformers
+    , vector
+  exposed-modules:
+      Data.HexBoard
+      Hive
+      Hive.Action
+      Hive.Board
+      Hive.Bug
+      Hive.Error
+      Hive.Expansions
+      Hive.Game
+      Hive.Monad
+      Hive.Player
+      Hive.Tile
+      Utils
+  default-language: Haskell2010
+
+test-suite hive-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  hs-source-dirs:
+      test
+  default-extensions: DeriveAnyClass DeriveFunctor DeriveGeneric FlexibleContexts LambdaCase MultiParamTypeClasses MultiWayIf NoImplicitPrelude OverloadedStrings PatternSynonyms RankNTypes RecordWildCards ScopedTypeVariables TupleSections TypeFamilies ViewPatterns
+  ghc-options: -Wall -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      aeson
+    , base
+    , mitchell-prelude
+    , text
+    , hive
+  default-language: Haskell2010

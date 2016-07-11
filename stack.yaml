@@ -1,7 +1,7 @@
 resolver: ghc-8.0.1
 
 packages:
-- '.'
+- hive
 - location:
     git: git@github.com:mitchellwrosen/mitchell-prelude
     commit: b11ee20
