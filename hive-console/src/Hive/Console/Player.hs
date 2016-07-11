@@ -1,13 +1,12 @@
-module Hive.Impl.Console.Player
-  ( consolePlayer
-  , consoleCompletion
+module Hive.Console.Player
+  ( player
+  , completion
   ) where
 
 import Mitchell.Prelude
 
 import Hive
 
-import Control.Lens
 import Prelude                  (String, read)
 import System.Console.ANSI
 import System.Console.Haskeline
@@ -16,11 +15,11 @@ import Text.Megaparsec
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.Vector        as Vector
 
-consolePlayer :: String -> Game -> Hive (InputT IO) ()
-consolePlayer name game0 = do
+player :: String -> Game -> Hive (InputT IO) ()
+player name game0 = do
   io $ do
-    putStrLn (cs ("To place a piece: " ++ colored White "place ant 0 1"))
-    putStrLn (cs ("To move a piece:  " ++ colored White "move 2 3, 2 4, 3 4"))
+    putStrLn (pack ("To place a piece: " ++ colored White "place ant 0 1"))
+    putStrLn (pack ("To move a piece:  " ++ colored White "move 2 3, 2 4, 3 4"))
   loop game0
  where
   loop :: Game -> Hive (InputT IO) ()
@@ -33,29 +32,29 @@ consolePlayer name game0 = do
 
     lift (getInputLine prompt) >>= \case
       Nothing -> do
-        putStrLn (cs (colored Red "Parse error."))
+        putStrLn (pack (colored Red "Parse error."))
         loop game
       Just line ->
         case runParser actionParser "" line of
           Left _ -> do
-            putStrLn (cs (colored Red "Parse error."))
+            putStrLn (pack (colored Red "Parse error."))
             loop game
           Right action -> do
             result <- hiveAction action
 
             case result of
               Left err -> do
-                putStrLn (cs (colored Red (cs (displayHiveError err))))
+                putStrLn (pack (colored Red (unpack (displayHiveError err))))
                 loop game
               Right (GameOver winner)  -> io (print winner)
               Right (GameActive game') -> loop game'
 
    where
-    board = view gameBoard game
-    player = view gamePlayer game
+    board  = gameBoard game
+    player = gamePlayer game
 
-consoleCompletion :: Monad m => CompletionFunc m
-consoleCompletion =
+completion :: Monad m => CompletionFunc m
+completion =
   completeWord Nothing [' ']
     (go [ ("ant",         ["ant"])
         , ("beetle",      ["beetle"])
@@ -74,10 +73,10 @@ consoleCompletion =
     | otherwise = go ws s
 
 
-actionParser :: Parsec String Action
+actionParser :: Parsec Dec String Action
 actionParser = placeParser <|> moveParser
  where
-  placeParser :: Parsec String Action
+  placeParser :: Parsec Dec String Action
   placeParser = do
     _ <- string' "place"
     space
@@ -86,14 +85,14 @@ actionParser = placeParser <|> moveParser
     idx <- idxParser
     pure (Place bug idx)
 
-  moveParser :: Parsec String Action
+  moveParser :: Parsec Dec String Action
   moveParser = do
     _ <- string' "move"
     space
     (x:xs) <- sepBy1 idxParser (space *> char ',' <* space)
     pure (Move x (NonEmpty.fromList xs))
 
-  bugParser :: Parsec String Bug
+  bugParser :: Parsec Dec String Bug
   bugParser =
         Ant         <$ string' "ant"
     <|> Beetle      <$ string' "beetle"
@@ -103,7 +102,7 @@ actionParser = placeParser <|> moveParser
     <|> Spider      <$ string' "spider"
     <|> Queen       <$ string' "queen"
 
-  idxParser :: Parsec String BoardIndex
+  idxParser :: Parsec Dec String BoardIndex
   idxParser = do
     row <- num
     space
@@ -114,12 +113,12 @@ actionParser = placeParser <|> moveParser
 
 printBoard :: Board -> IO ()
 printBoard board = do
-  putStrLn (cs (colored White column_nums))
-  putStrLn (cs ("   " ++ replicate (3 * (boardWidth board) - 2) '-'))
+  putStrLn (pack (colored White column_nums))
+  putStrLn ("   " ++ pack (replicate (3 * (boardWidth board) - 2) '-'))
 
   Vector.imapM_
     printTwoRows
-    (Vector.map (split . Vector.toList . Vector.map cellToString) (view boardTiles board))
+    (Vector.map (split . Vector.toList . Vector.map cellToString) (boardTiles board))
  where
   column_nums :: String
   column_nums =
@@ -128,16 +127,16 @@ printBoard board = do
 
   printTwoRows :: Int -> ([String], [String]) -> IO ()
   printTwoRows row (es, os)
-    | view boardParity board == Even = do
+    | boardParity board == Even = do
         unless (null os) $
-          putStrLn (cs (row_num ++ spaceFirst os))
+          putStrLn (pack (row_num ++ spaceFirst os))
         unless (null es) $
-          putStrLn (cs (row_num ++ spaceSecond es))
+          putStrLn (pack (row_num ++ spaceSecond es))
     | otherwise = do
         unless (null es) $
-          putStrLn (cs (row_num ++ spaceSecond es))
+          putStrLn (pack (row_num ++ spaceSecond es))
         unless (null os) $
-          putStrLn (cs (row_num ++ spaceFirst os))
+          putStrLn (pack (row_num ++ spaceFirst os))
    where
     row_num = colored White (printf "%2d|" row)
 

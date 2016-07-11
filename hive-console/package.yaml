@@ -1,0 +1,34 @@
+name: hive-console
+version: 0.1.0.0
+license: BSD3
+author: Mitchell Rosen
+maintainer: mitchellwrosen@gmail.com
+github: mitchellwrosen/hive
+copyright: 2015-2016 Mitchell Rosen
+
+ghc-options: -Wall
+
+default-extensions:
+  - LambdaCase
+  - NoImplicitPrelude
+  - OverloadedStrings
+
+dependencies:
+  - base
+  - haskeline
+  - hive
+  - mitchell-prelude
+
+library:
+  source-dirs: src
+  dependencies:
+    - ansi-terminal
+    - megaparsec
+    - vector
+
+executables:
+  hive-console:
+    source-dirs: app
+    main: Main.hs
+    dependencies:
+      - hive-console

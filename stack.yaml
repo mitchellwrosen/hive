@@ -2,6 +2,7 @@ resolver: ghc-8.0.1
 
 packages:
 - hive
+- hive-console
 - location:
     git: git@github.com:mitchellwrosen/mitchell-prelude
     commit: b11ee20
@@ -11,6 +12,7 @@ extra-deps:
   - StateVar-1.1.0.4
   - adjunctions-4.3
   - aeson-0.11.2.0
+  - ansi-terminal-0.6.2.3
   - async-2.1.0
   - attoparsec-0.13.0.2
   - base-orphans-0.5.4
@@ -26,6 +28,7 @@ extra-deps:
   - hashable-1.2.4.0
   - kan-extensions-5.0.1
   - lens-4.14
+  - megaparsec-5.0.0
   - microlens-0.4.5.0
   - microlens-ghc-0.4.5.0
   - microlens-mtl-0.1.8.0
