@@ -12,7 +12,6 @@ ghc-options: -Wall
 
 default-extensions:
   - DeriveAnyClass
-  - DeriveFunctor
   - DeriveGeneric
   - FlexibleContexts
   - LambdaCase
@@ -46,71 +45,16 @@ library:
     - transformers
     - vector
 
-# executables:
-#   hive-local:
-#     source-dirs: app
-#     main: Hive/Impl/Console/LocalMain.hs
-#     other-modules:
-#       - Hive.Impl.Console.Player
-#     dependencies:
-#       - ansi-terminal
-#       - bytestring
-#       - haskeline
-#       - hive
-#       - lens
-#       - megaparsec
-#       - semigroups
-#       - transformers
-#       - vector
-#
-#   hive-ws-server:
-#     source-dirs:
-#       - app
-#       - app/extra
-#     main: Hive/Impl/Console/WebSocketServerMain.hs
-#     dependencies:
-#       - async
-#       - bytestring
-#       - free
-#       - hive
-#       - http-types
-#       - lens
-#       - lifted-async
-#       - logging-effect
-#       - mmorph
-#       - monad-unlift
-#       - network
-#       - semigroups
-#       - transformers
-#       - vector
-#       - wai
-#       - wai-websockets
-#       - warp
-#       - websockets
-#
-#   hive-ws-client:
-#     source-dirs:
-#       - app
-#       - app/extra
-#     main: Hive/Impl/Console/WebSocketClientMain.hs
-#     dependencies:
-#       - ansi-terminal
-#       - bytestring
-#       - free
-#       - haskeline
-#       - hive
-#       - lens
-#       - logging-effect
-#       - megaparsec
-#       - semigroups
-#       - transformers
-#       - vector
-#       - websockets
-
 tests:
-  hive-test:
+  spec:
     source-dirs: test
     main: Spec.hs
     dependencies:
       - hive
     ghc-options: -threaded -rtsopts -with-rtsopts=-N
+
+  doctest:
+    main: test/DocTest.hs
+    dependencies:
+      - doctest
+      - hive

@@ -9,7 +9,6 @@ import Hive.Expansions
 
 import Data.Aeson
 
-
 -- | Bug enum.
 data Bug
   = Ant

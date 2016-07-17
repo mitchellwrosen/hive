@@ -15,12 +15,15 @@ import Hive.Game
 import Hive.Player
 
 import Control.Monad.Trans.Free
+import Prelude (fmap)
 
 
 -- | Underlying player action functor.
 data HiveF a
   = HiveAction Action (Either HiveError GameState -> a)
-  deriving Functor
+
+instance Functor HiveF where
+  fmap f (HiveAction act k) = HiveAction act (f . k)
 
 pattern MakePlacement bug idx k = HiveAction (Place bug idx) k
 pattern MakeMove i is k = HiveAction (Move i is) k

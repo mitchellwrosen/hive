@@ -22,27 +22,33 @@ data Action
 instance ToJSON Action where
   toJSON = \case
     Place bug idx -> object
-      [ "type"   .= String "Place"
-      , "bug"    .= toJSON bug
-      , "index"  .= toJSON idx
+      [ "type"   .= String "place"
+      , "place"  .= object
+        [ "bug"   .= toJSON bug
+        , "index" .= toJSON idx
+        ]
       ]
+
     Move idx idxs -> object
-      [ "type" .= String "Move"
-      , "path" .= toJSON (idx : NonEmpty.toList idxs)
+      [ "type" .= String "move"
+      , "move" .= object
+        [ "path" .= toJSON (idx : NonEmpty.toList idxs) ]
       ]
 
 instance FromJSON Action where
   parseJSON = withObject "object" $ \o ->
     o .: "type" >>=
       withText "text" (\case
-        "Place" -> do
-          bug <- o .: "bug"
-          idx <- o .: "index"
-          pure (Place bug idx)
+        "place" ->
+          o .: "place" >>=
+            withObject "object" (\o' ->
+              lift2 Place (o' .: "bug") (o' .: "index"))
 
-        "Move" ->
-          o .: "path" >>= \case
-            (x:y:z) -> pure (Move x (NonEmpty.fromList (y:z)))
-            _ -> fail "expected 2 or more board indices"
+        "move" ->
+          o .: "move" >>=
+            withObject "object" (\o' ->
+              o' .: "path" >>= \case
+                (x:y:z) -> pure (Move x (NonEmpty.fromList (y:z)))
+                _ -> fail "expected 2 or more board indices")
 
-        _ -> fail "expected type Place or Move")
+        _ -> fail "expected type 'place' or type 'move'")
